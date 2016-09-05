@@ -1,3 +1,7 @@
+/*
+ * Synchronizes a registration method with kitti player by waiting for a odometry message that signifies that the computation of transformation is completed. 
+ * It records the transformation in a text file, whose name is given as argument.
+ */
 #include <iostream>
 #include <cstring>
 #include <stdlib.h>
@@ -59,7 +63,7 @@ int main(int argc, char** argv)
 		i++;
 		try
 		{
-			listener.lookupTransform("camera_init","/camera",ros::Time(0),transform);
+			listener.lookupTransform("/camera","camera_init",ros::Time(0),transform);
 		}
 		catch (tf::TransformException &ex) {
 			ROS_ERROR("%s",ex.what());
