@@ -1,0 +1,22 @@
+<launch>
+	<arg name="rviz" default="true" />
+	<node pkg="velodyne_pointcloud" type="cloud_node" name="cloud_node">
+		<param name="calibration" value="$(find generalp)/config/vlp16.yaml"/>
+		<param name="min_range" value="0.4"/>
+		<param name="max_range" value="135.0"/>
+	</node>
+  
+
+  <remap from="velodyne_points" to="scan"/>
+	<!--node pkg="generalp" type="NDT_OM_ORU" name="NDT_OM_ORU" output="screen" respawn="false" launch-prefix="urxvt -e gdb --args"-->
+	<node pkg="generalp" type="NDT_OM_ORU" name="NDT_OM_ORU" output="screen" respawn="false">
+		<param name="voxel_size" type="double" value="0.10"/>
+		<param name="resolution" type="double" value="0.50"/>
+	</node>
+
+  <group if="$(arg rviz)">
+    <node launch-prefix="nice" pkg="rviz" type="rviz" name="rviz" args="-d $(find ndt_mod)/rviz_cfg/loam_velodyne.rviz" />
+  </group>
+<param name="use_sim_time" value="true" />
+
+</launch>

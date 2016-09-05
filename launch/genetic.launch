@@ -1,0 +1,20 @@
+<launch>
+	<node pkg="generalp" type="genetic" name="genetic" output="screen">
+		<param name="paramOut" value="/NDTparams"/>
+		<param name="testPose" value="/laser_odom_to_init"/>
+		<param name="refPose" value="/integrated_to_init"/>
+		<param name="rosbagCommand" value="rosbag play --clock --quiet ~/withGround/2016-07-14-15-07-23_6.bag > /dev/null"/>
+		<param name="mutationProp" type="double" value="0.1"/>
+		<param name="crossoverProp" type="double" value="0.5"/>
+		<param name="numberOfParameters" type="int" value="4"/>
+		<param name="numberOfIterations" type="int" value="200"/>
+		<param name="parameter0L" type="double" value="0.1"/>
+		<param name="parameter0U" type="double" value="3.5"/>
+		<param name="parameter1L" type="double" value="1.0"/>
+		<param name="parameter1U" type="double" value="9.5"/>
+		<param name="parameter2L" type="double" value="0.001"/>
+		<param name="parameter2U" type="double" value="1.5"/>
+		<param name="parameter3L" type="double" value="0.1"/>
+		<param name="parameter3U" type="double" value="3.5"/>
+	</node>
+</launch>
