@@ -1,0 +1,27 @@
+<launch>
+	<arg name="rviz" default="true" />
+
+  <remap from="velodyne_points" to="/kitti_player/hdl64e"/>
+
+	<node pkg="generalp" type="NDT_ORU" name="NDT_ORU" output="screen" respawn="false">
+		<param name="voxel_size" type="double" value="0.01"/>
+		<param name="resolution" type="double" value="0.4"/>
+		<param name="numIter" type="double" value="15"/>
+		<param name="size_z" type="double" value="35"/>
+		<param name="size_x" type="double" value="80"/>
+		<param name="size_y" type="double" value="80"/>
+		<param name="pose_init_r" type="double" value="-1.57079"/>
+		<param name="pose_init_p" type="double" value="0"/>
+		<param name="pose_init_t" type="double" value="0"/>
+		<param name="sensor_range" type="double" value="130.3"/>
+		<param name="doMultires" type="bool" value="true"/>
+		
+
+	</node>
+
+  <group if="$(arg rviz)">
+    <node launch-prefix="nice" pkg="rviz" type="rviz" name="rviz" args="-d $(find ndt_mod)/rviz_cfg/loam_velodyne.rviz" />
+  </group>
+<param name="use_sim_time" value="false" />
+
+</launch>
