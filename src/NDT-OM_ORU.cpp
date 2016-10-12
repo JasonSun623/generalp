@@ -202,11 +202,12 @@ int main(int argc, char** argv)
 	nh.param("numIter", numIter,35);
 	nh.param("doMultires", doMultires,true);
 	nh.param("visualize",visualize,true);
+	nh.param("beHMT",beHMT,beHMT);
 	signal(SIGINT,int_handler);
 	std::cout<<std::endl<<std::endl<<"Running NDT  ";
 
     ros::Subscriber subReset = nh.subscribe<std_msgs::Float32MultiArray> ("/NDTparams", 5,paramHandler);
-	ros::Subscriber subLaserCloudFullRes = nh.subscribe<sensor_msgs::PointCloud2> ("/velodyne_points", 2, laserCloudFullResHandler);
+	ros::Subscriber subLaserCloudFullRes = nh.subscribe<sensor_msgs::PointCloud2> ("/velodyne_points", 1, laserCloudFullResHandler);
 	ros::Subscriber subImuTrans = nh.subscribe<sensor_msgs::PointCloud2> ("/imu_trans", 5, imuTransHandler);
 	ros::Publisher pubLaserCloudFullRes = nh.advertise<sensor_msgs::PointCloud2> ("/velodyne_cloud_3", 2);
 

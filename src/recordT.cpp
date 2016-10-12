@@ -21,7 +21,7 @@ char rotatingFun[4]={'|','/','-','\\'};
 int rotateCount=0;
 void synchCallback(const nav_msgs::Odometry::ConstPtr& msg)
 {
-	std::cout << '\b'<<rotatingFun[++rotateCount%4] << std::flush;
+//	std::cout << '\b'<<rotatingFun[++rotateCount%4] << std::flush;
 	received=1;
 }
 bool term=false;

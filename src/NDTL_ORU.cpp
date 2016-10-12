@@ -26,7 +26,7 @@
 #include <ndt_map/ndt_map.h>
 #include <ndt_map/lazy_grid.h>
 #include <ndt_map/ndt_cell.h>
-#include <ndt_registration/ndt_matcher_d2d.h>
+#include <ndt_registration/ndt_matcher_d2dl.h>
 #include <tf_conversions/tf_eigen.h>
 #include <csignal>
 #include <ndt_map/NDTMapMsg.h>
@@ -38,40 +38,50 @@
 
 void run();
 
+int NumInputs=2;
 
 Eigen::Transform<double,3,Eigen::Affine,Eigen::ColMajor> T;
-float resolution;
+float resolution[2];
 double timeLaserCloudFullRes = 0;
 
-float voxel_size;
-bool newLaserCloudFullRes = false;
+float voxel_size[2];
+int newLaserCloudFullRes =0;
 
-pcl::PointCloud<pcl::PointXYZ>::Ptr input_cloud (new pcl::PointCloud<pcl::PointXYZ>);
-pcl::PointCloud<pcl::PointXYZ>::Ptr imuTrans(new pcl::PointCloud<pcl::PointXYZ>());
+std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr > input_cloud;
 
 char rotatingFun[4]={'|','/','-','\\'};
 int rotateCount=0;
 
-
-void laserCloudFullResHandler(const sensor_msgs::PointCloud2ConstPtr& laserCloudFullRes2)
+pcl::PointCloud<pcl::PointXYZ>::Ptr laserHandler(const sensor_msgs::PointCloud2ConstPtr& laserCloud, int num)
 {
 	pcl::PointCloud<PointType>::Ptr laserCloudTemp(new pcl::PointCloud<PointType>);
 
-	timeLaserCloudFullRes = laserCloudFullRes2->header.stamp.toSec();
-	pcl::fromROSMsg(*laserCloudFullRes2, *laserCloudTemp);
-	  std::vector<int> indices;
-	  pcl::removeNaNFromPointCloud(*laserCloudTemp,*laserCloudTemp, indices);
+	timeLaserCloudFullRes = laserCloud->header.stamp.toSec();
+	pcl::fromROSMsg(*laserCloud, *laserCloudTemp);
+	std::vector<int> indices;
+	pcl::removeNaNFromPointCloud(*laserCloudTemp,*laserCloudTemp, indices);
 	pcl::PointCloud<pcl::PointXYZ>::Ptr non_filtered_cloud (new pcl::PointCloud<pcl::PointXYZ>);
 	copyPointCloud(*laserCloudTemp,*non_filtered_cloud);
 	pcl::ApproximateVoxelGrid<pcl::PointXYZ> approximate_voxel_filter;
-	approximate_voxel_filter.setLeafSize (voxel_size, voxel_size, voxel_size);
+	approximate_voxel_filter.setLeafSize (voxel_size[num], voxel_size[num], voxel_size[num]);
 	approximate_voxel_filter.setInputCloud (non_filtered_cloud);
-	approximate_voxel_filter.filter (*input_cloud);
-	std::cout << '\b'<<rotatingFun[++rotateCount%4] << std::flush;
+	approximate_voxel_filter.filter (*input_cloud[num]);
 
-  newLaserCloudFullRes = true;
+	return non_filtered_cloud;
 }
 
+void laserCloudFullResHandler0(const sensor_msgs::PointCloud2ConstPtr& laserCloud)
+{
+	laserHandler(laserCloud,0);
+	//std::cout << '\b'<<rotatingFun[++rotateCount%4] << std::flush;
+	newLaserCloudFullRes|=1;
+}
+void laserCloudFullResHandler1(const sensor_msgs::PointCloud2ConstPtr& laserCloud)
+{
+	laserHandler(laserCloud,1);
+	std::cout << '\b'<<rotatingFun[++rotateCount%4] << std::flush;
+	newLaserCloudFullRes|=2;
+}
 #define velodyne
 
 int main(int argc, char** argv)
@@ -83,20 +93,24 @@ int main(int argc, char** argv)
 		bool doMultires;
 		bool do3D=false;
 		int numIter;
-	nh.param("voxel_size",voxel_size,0.05f);
+	nh.param("voxel_size0",voxel_size[0],0.001f);
+	nh.param("voxel_size1",voxel_size[1],0.001f);
 	nh.param("size_x",size_x,80.05f);
 	nh.param("size_y",size_y,80.05f);
 	nh.param("size_z",size_z,15.05f);
 	nh.param("sensor_range",sensor_range,100.3f);
-	nh.param("resolution", resolution,0.40f);
+	nh.param("resolution0", resolution[0],0.40f);
+	nh.param("resolution1", resolution[1],0.40f);
 	nh.param("numIter", numIter,150);
 	nh.param("doMultires", doMultires,true);
-	nh.param("do3D", do3D,false);
+	nh.param("do3D", do3D,true);
 	std::cout<<std::endl<<std::endl<<"Running NDT  ";
 
-	ros::Subscriber subLaserCloudFullRes = nh.subscribe<sensor_msgs::PointCloud2> ("/velodyne_points", 2, laserCloudFullResHandler);
-	ros::Publisher pubLaserCloudFullRes = nh.advertise<sensor_msgs::PointCloud2> ("/velodyne_cloud_3", 2);
-
+	ros::Subscriber subLaserCloudFullRes0 = nh.subscribe<sensor_msgs::PointCloud2> ("/velodyne_input0", 2, laserCloudFullResHandler0);
+	ros::Subscriber subLaserCloudFullRes1 = nh.subscribe<sensor_msgs::PointCloud2> ("/velodyne_input1", 2, laserCloudFullResHandler1);
+	std::vector<ros::Publisher> pubLaser;
+	for(unsigned int i=0;i< NumInputs;i++)
+		pubLaser.push_back(nh.advertise<sensor_msgs::PointCloud2> ("/velodyne_cloud_"+i, 2));
 
 	ros::Publisher pubLaserOdometry = nh.advertise<nav_msgs::Odometry> ("/laser_odom_to_init", 5);
 	nav_msgs::Odometry laserOdometry;
@@ -107,7 +121,7 @@ int main(int argc, char** argv)
 	tf::TransformBroadcaster tfBroadcaster2;
 
 
-	ros::Rate rate(100);
+	ros::Rate rate(10);
 		bool systemInited = false;
 	    double pose_init_x=0,pose_init_y=0,pose_init_z=0,
 		  pose_init_r=0,pose_init_p=0,pose_init_t=0;
@@ -123,13 +137,27 @@ int main(int argc, char** argv)
 		ROS_INFO("Init pose is (%lf,%lf,%lf)", pose_.translation()(0), pose_.translation()(1), 
                  pose_.rotation().eulerAngles(0,1,2)(0));
 
-		lslgeneric::NDTMatcherD2D matcher;
+		lslgeneric::NDTMatcherD2DL matcher;
 
 	    matcher.ITR_MAX =numIter;
 	    matcher.step_control=true;
-	    lslgeneric::NDTMap map(new lslgeneric::LazyGrid(resolution));
-	    map.guessSize(0,0,0,sensor_range,sensor_range,size_z);
-	    lslgeneric::NDTMatcherD2D_2D matcher2D;
+		std::vector<lslgeneric::NDTMap > mapLowRes ( NumInputs, new lslgeneric::LazyGrid(resolution[0]));
+		std::vector<lslgeneric::NDTMap > mapHighRes ( NumInputs, new lslgeneric::LazyGrid(resolution[1]));
+		std::vector<lslgeneric::NDTMap > map ;
+		std::vector<lslgeneric::NDTMap > ndlocal ;
+			map.push_back(mapLowRes[0]);
+			map.push_back(mapHighRes[0]);
+			ndlocal.push_back(mapLowRes[1]);
+			ndlocal.push_back(mapHighRes[1]);
+
+		for(unsigned int i=0;i< NumInputs;i++)
+		{
+			pcl::PointCloud<pcl::PointXYZ>::Ptr tmp (new pcl::PointCloud<pcl::PointXYZ>) ;
+			input_cloud.push_back(tmp);
+			map[i].guessSize(0,0,0,size_x,size_y,size_z);
+			ndlocal[i].guessSize(0,0,0,size_x,size_y,size_z);
+		}	
+	    //lslgeneric::NDTMatcherD2D_2D matcher2D;
 		Eigen::Affine3d to_cor=pose_.inverse();
 	
 	
@@ -137,68 +165,21 @@ int main(int argc, char** argv)
 		{
 			rate.sleep();
 			ros::spinOnce();
-			if (!newLaserCloudFullRes ) 
+			if (__builtin_popcount(newLaserCloudFullRes)!=NumInputs ) 
 				continue;
-			newLaserCloudFullRes = false;
+			newLaserCloudFullRes =0;
 
-			if (!systemInited) 
+			if(do3D&&systemInited)
 			{
-				map.loadPointCloud(*input_cloud,sensor_range);
-				map.computeNDTCells(CELL_UPDATE_MODE_SAMPLE_VARIANCE);
-
-				sensor_msgs::PointCloud2 interestPointsLast2;
-				pcl::toROSMsg(*input_cloud, interestPointsLast2);
-				interestPointsLast2.header.stamp = ros::Time().fromSec(timeLaserCloudFullRes);
-				interestPointsLast2.header.frame_id = "/camera";
-				pubLaserCloudFullRes.publish(interestPointsLast2);
-
-				systemInited = true;
-				continue;
-			}
-			
-
-			if(doMultires){
-				lslgeneric::NDTMap ndlocalLow(new lslgeneric::LazyGrid(3*resolution));
-				ndlocalLow.guessSize(0,0,0,sensor_range,sensor_range,size_z);
-				ndlocalLow.loadPointCloud(*input_cloud,sensor_range);
-				ndlocalLow.computeNDTCells(CELL_UPDATE_MODE_SAMPLE_VARIANCE);
-
-
-				lslgeneric::NDTMap mapLow(new lslgeneric::LazyGrid(3*resolution));
-				mapLow.initialize(0,0,0,3*size_x,3*size_y,size_z);
-				std::vector<lslgeneric::NDTCell*> ndts;
-				ndts = map.getAllCells(); //this copies cells?
-				for(int i=0; i<ndts.size(); i++)	
+				for(unsigned int i=0;i<map.size();i++)
 				{
-					lslgeneric::NDTCell *cell = ndts[i];
-					if(cell!=NULL)
-					{
-						if(cell->hasGaussian_)
-						{
-						Eigen::Vector3d m = cell->getMean();	
-						Eigen::Matrix3d cov = cell->getCov();
-						unsigned int nump = cell->getN();
-						mapLow.addDistributionToCell(cov, m,nump);
-						}
-					}
-					delete cell;
+					ndlocal[i].loadPointCloud(*input_cloud[i],sensor_range);
+					ndlocal[i].computeNDTCells(CELL_UPDATE_MODE_SAMPLE_VARIANCE);
 				}
-				matcher2D.match( mapLow, ndlocalLow,Tinit,true);
-			}
-
-			if(do3D)
-			{
-				lslgeneric::NDTMap ndlocal(new lslgeneric::LazyGrid(resolution));
-				ndlocal.guessSize(0,0,0,sensor_range,sensor_range,size_z);
-				ndlocal.loadPointCloud(*input_cloud,sensor_range);
-				ndlocal.computeNDTCells(CELL_UPDATE_MODE_SAMPLE_VARIANCE);
 				matcher.match( map, ndlocal,Tinit,true) ;
 			}
+			systemInited=true;
 			pose_=pose_*Tinit;
-
-			map.loadPointCloud(*input_cloud,sensor_range);
-			map.computeNDTCells(CELL_UPDATE_MODE_SAMPLE_VARIANCE);
-
 			tf::Transform transform;
 			tf::transformEigenToTF(to_cor*pose_, transform);
 			tfBroadcaster.sendTransform(tf::StampedTransform(transform, ros::Time::now(),"camera_init","camera"));;
@@ -207,11 +188,17 @@ int main(int argc, char** argv)
 			tf::transformEigenToTF(pose_, transform2);
 			tfBroadcaster2.sendTransform(tf::StampedTransform(transform2, ros::Time::now(),"camera_init","camera2"));;
 
-			sensor_msgs::PointCloud2 laserCloudFullRes3;
-			pcl::toROSMsg(*input_cloud, laserCloudFullRes3);
-			laserCloudFullRes3.header.stamp = ros::Time().fromSec(timeLaserCloudFullRes);
-			laserCloudFullRes3.header.frame_id = "/camera2";
-			pubLaserCloudFullRes.publish(laserCloudFullRes3);
+			for(unsigned int i=0;i<map.size();i++)
+			{
+				map[i].loadPointCloud(*input_cloud[i],sensor_range);
+				map[i].computeNDTCells(CELL_UPDATE_MODE_SAMPLE_VARIANCE);
+
+				sensor_msgs::PointCloud2 interestPointsLast2;
+				pcl::toROSMsg(*input_cloud[i], interestPointsLast2);
+				interestPointsLast2.header.stamp = ros::Time().fromSec(timeLaserCloudFullRes);
+				interestPointsLast2.header.frame_id = "/camera2";
+				pubLaser[i].publish(interestPointsLast2);
+			}
 
 			pubLaserOdometry.publish(laserOdometry);
 

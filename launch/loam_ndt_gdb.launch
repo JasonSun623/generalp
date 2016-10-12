@@ -1,0 +1,36 @@
+<launch>
+	<arg name="rviz" default="true" />
+
+
+	<node pkg="generalp" type="cornernessTwoClouds" name="cornernessTwoClouds" output="screen">
+		<param name="minIntL" type="double" value="0.0"/>
+		<param name="maxIntL" type="double" value="0.02"/>
+		<param name="minIntU" type="double" value="0.8"/>
+		<param name="maxIntU" type="double" value="2.01"/>
+	</node>
+
+	<node pkg="generalp" type="NDTL_ORU" name="NDTL_ORU" output="screen" respawn="false" launch-prefix="urxvt -e gdb -ex run --args">
+		<param name="voxel_size0" type="double" value="0.1"/>
+		<param name="voxel_size1" type="double" value="0.001"/>
+		<param name="resolution0" type="double" value="1.4"/>
+		<param name="resolution1" type="double" value="0.3"/>
+		<param name="numIter" type="double" value="25"/>
+		<param name="size_z" type="double" value="35"/>
+		<param name="size_x" type="double" value="130"/>
+		<param name="size_y" type="double" value="130"/>
+		<param name="pose_init_r" type="double" value="-1.57079"/>
+		<param name="pose_init_p" type="double" value="0"/>
+		<param name="pose_init_t" type="double" value="0"/>
+		<param name="sensor_range" type="double" value="130.3"/>
+		<param name="doMultires" type="bool" value="false"/>
+		<param name="do3D" type="bool" value="true"/>
+		
+
+	</node>
+
+  <group if="$(arg rviz)">
+    <node launch-prefix="nice" pkg="rviz" type="rviz" name="rviz" args="-d $(find generalp)/rviz_cfg/loam_ndt.rviz" />
+  </group>
+<param name="use_sim_time" value="false" />
+
+</launch>
