@@ -2,14 +2,14 @@
 	<arg name="rviz" default="true" />
 
 
-	<node pkg="generalp" type="cornernessTwoClouds" name="cornernessTwoClouds" output="screen">
+	<node pkg="generalp" type="cornerness" name="cornerness" output="screen">
 		<param name="minIntL" type="double" value="0.00"/>
 		<param name="minIntU" type="double" value="0.075"/>
 		<param name="maxIntL" type="double" value="0.90"/>
 		<param name="maxIntU" type="double" value="100.0"/>
 		<param name="K" type="int" value="10"/>
 	</node>
-	<node pkg="generalp" type="NDTL_ORU" name="NDTL_ORU" output="screen" respawn="false">
+	<node pkg="generalp" type="multimap_NDT" name="multimap_NDT" output="screen" respawn="false">
 		<param name="voxel_size0" type="double" value="0.14"/>
 		<param name="voxel_size1" type="double" value="0.014"/>
 		<param name="resolution0" type="double" value="1.7"/>
