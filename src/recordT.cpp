@@ -1,3 +1,7 @@
+/*
+ * Synchronizes a registration method with kitti player by waiting for a odometry message that signifies that the computation of transformation is completed. 
+ * It records the transformation in a text file, whose name is given as argument.
+ */
 #include <iostream>
 #include <cstring>
 #include <stdlib.h>
@@ -13,9 +17,11 @@
 using namespace std;
 bool received=false;
 std::ofstream ofs;
+char rotatingFun[4]={'|','/','-','\\'};
+int rotateCount=0;
 void synchCallback(const nav_msgs::Odometry::ConstPtr& msg)
 {
-    ROS_INFO_STREAM("Synch received");
+//	std::cout << '\b'<<rotatingFun[++rotateCount%4] << std::flush;
 	received=1;
 }
 bool term=false;
@@ -59,7 +65,7 @@ int main(int argc, char** argv)
 		i++;
 		try
 		{
-			listener.lookupTransform("camera_init","/camera",ros::Time(0),transform);
+			listener.lookupTransform("/camera_init","camera",ros::Time(0),transform);
 		}
 		catch (tf::TransformException &ex) {
 			ROS_ERROR("%s",ex.what());
@@ -71,10 +77,6 @@ int main(int argc, char** argv)
 			for(int j=0;j<4;j++)
 				ofs<< double (m(k,j))<<" ";
 		ofs<<endl;
-		for(int k=0;k<4;k++)
-			for(int j=0;j<4;j++)
-				std::cout<< double (m(k,j))<<" ";
-		std::cout<<endl;
 	}
 	ofs.close();
 	ros::shutdown();

@@ -233,12 +233,12 @@ int main(int argc, char** argv)
 	ros::Publisher pubLaserOdometry = nh.advertise<nav_msgs::Odometry> ("/laser_odom_to_init", 5);
 	nav_msgs::Odometry laserOdometry;
 	laserOdometry.header.frame_id = "/camera_init";
-	laserOdometry.child_frame_id = "/laser_odom";
+	laserOdometry.child_frame_id = "/camera";
 
 	tf::TransformBroadcaster tfBroadcaster;
 	tf::StampedTransform laserOdometryTrans;
 	laserOdometryTrans.frame_id_ = "/camera_init";
-	laserOdometryTrans.child_frame_id_ = "/laser_odom";
+	laserOdometryTrans.child_frame_id_ = "/camera";
 
 
 	ros::Rate rate(100);

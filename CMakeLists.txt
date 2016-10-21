@@ -3,8 +3,8 @@ project(generalp)
 set(SURE_INCLUDE_DIRS "~/workspace/rgbdpro/sure3d/include")
 set(SURE_LIBRARY_DIRS "~/workspace/rgbdpro/sure3d/lib")
 set(SURE_LIBRARIES "~/workspace/rgbdpro/sure3d/lib/libsure3d.so")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O0")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g O0")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS} -g -O0")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS} -g O0")
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
@@ -67,6 +67,25 @@ target_link_libraries(NDTmatchingPCL  ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${Ope
 add_executable(NDT_OM_ORU src/NDT-OM_ORU.cpp)
 target_link_libraries(NDT_OM_ORU ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS} ${Boost_LIBRARIES} -lboost_serialization)
 
+add_executable(NDT_ORU src/NDT_ORU.cpp)
+target_link_libraries(NDT_ORU ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS} ${Boost_LIBRARIES} -lboost_serialization)
+
+add_executable(NDTL_ORU src/NDTL_ORU.cpp)
+target_link_libraries(NDTL_ORU ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS} ${Boost_LIBRARIES} -lboost_serialization)
+
+add_executable(NDTL_ORU_MANY src/NDTL_ORU_MANY.cpp)
+target_link_libraries(NDTL_ORU_MANY ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS} ${Boost_LIBRARIES} -lboost_serialization)
+
+add_executable(cornerness src/cornerness.cpp)
+target_link_libraries(cornerness ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS} ${Boost_LIBRARIES} -lboost_serialization)
+
+add_executable(cornernessTwoClouds src/cornernessTwoClouds.cpp)
+target_link_libraries(cornernessTwoClouds ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS} ${Boost_LIBRARIES} -lboost_serialization)
+
+add_executable(cornernessNClouds src/cornernessNClouds.cpp)
+target_link_libraries(cornernessNClouds ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS} ${Boost_LIBRARIES} -lboost_serialization)
+
+## Uncomment this if the package has a setup.py. This macro ensures
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## modules and global scripts declared therein get installed
 ## See http://ros.org/doc/api/catkin/html/user_guide/setup_dot_py.html

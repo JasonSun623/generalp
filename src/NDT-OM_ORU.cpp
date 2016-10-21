@@ -202,25 +202,25 @@ int main(int argc, char** argv)
 	nh.param("numIter", numIter,35);
 	nh.param("doMultires", doMultires,true);
 	nh.param("visualize",visualize,true);
+	nh.param("beHMT",beHMT,beHMT);
 	signal(SIGINT,int_handler);
 	std::cout<<std::endl<<std::endl<<"Running NDT  ";
 
     ros::Subscriber subReset = nh.subscribe<std_msgs::Float32MultiArray> ("/NDTparams", 5,paramHandler);
-	ros::Subscriber subLaserCloudFullRes = nh.subscribe<sensor_msgs::PointCloud2> ("/velodyne_points", 2, laserCloudFullResHandler);
+	ros::Subscriber subLaserCloudFullRes = nh.subscribe<sensor_msgs::PointCloud2> ("/velodyne_points", 1, laserCloudFullResHandler);
 	ros::Subscriber subImuTrans = nh.subscribe<sensor_msgs::PointCloud2> ("/imu_trans", 5, imuTransHandler);
 	ros::Publisher pubLaserCloudFullRes = nh.advertise<sensor_msgs::PointCloud2> ("/velodyne_cloud_3", 2);
 
-  ros::Publisher map_pub = nh.advertise<nav_msgs::OccupancyGrid>("dummy_occ_map_pub", 1000);
 
 	ros::Publisher pubLaserOdometry = nh.advertise<nav_msgs::Odometry> ("/laser_odom_to_init", 5);
 	nav_msgs::Odometry laserOdometry;
 	laserOdometry.header.frame_id = "/camera_init";
-	laserOdometry.child_frame_id = "/laser_odom";
+	laserOdometry.child_frame_id = "/camera";
 
 	tf::TransformBroadcaster tfBroadcaster;
 	tf::StampedTransform laserOdometryTrans;
 	laserOdometryTrans.frame_id_ = "/camera_init";
-	laserOdometryTrans.child_frame_id_ = "/laser_odom";
+	laserOdometryTrans.child_frame_id_ = "/camera";
 
 
 	ros::Rate rate(100);
@@ -240,6 +240,9 @@ int main(int argc, char** argv)
 		bool systemInited = false;
 	    double pose_init_x=0,pose_init_y=0,pose_init_z=0,
 		  pose_init_r=0,pose_init_p=0,pose_init_t=0;
+		nh.param("pose_init_r", pose_init_r,pose_init_r);
+		nh.param("pose_init_p", pose_init_p,pose_init_p);
+		nh.param("pose_init_t", pose_init_t,pose_init_t);
 		Eigen::Affine3d pose_, Tmotion, sensor_pose_;
 		pose_ =  Eigen::Translation<double,3>(pose_init_x,pose_init_y,pose_init_z)*
 		  Eigen::AngleAxis<double>(pose_init_r,Eigen::Vector3d::UnitX()) *
@@ -252,7 +255,18 @@ int main(int argc, char** argv)
 		Tmotion.setIdentity();
 		ROS_INFO("Init pose is (%lf,%lf,%lf)", pose_.translation()(0), pose_.translation()(1), 
                  pose_.rotation().eulerAngles(0,1,2)(0));
-	 
+
+	 Eigen::Matrix4f transform_1;
+	transform_1<< 	-1,0,0,0,
+					0,-1,0,0,
+					0,0,-1,0,
+					0,0,0,1;
+		 Eigen::Matrix4f transform_2;
+	transform_1<< 	0,-1,0,0,
+					0,0,-1,0,
+					1,0,0,0,
+					0,0,0,1;
+	
 		while(ros::ok()&&!reset)
 		{
 			rate.sleep();
@@ -262,6 +276,7 @@ int main(int argc, char** argv)
 			newLaserCloudFullRes = false;
 			newImuTrans = false;
 
+			//pcl::transformPointCloud (*input_cloud, *input_cloud, transform_1);
 
 			if (!systemInited) 
 			{
@@ -281,13 +296,17 @@ int main(int argc, char** argv)
 			pose_ = fuser->update(Tmotion,*input_cloud.get());
 			tf::Transform transform;
 			tf::transformEigenToTF(pose_, transform);
-			tfBroadcaster.sendTransform(tf::StampedTransform(transform, ros::Time::now(),"camera_init","laser_odom"));;
+			tfBroadcaster.sendTransform(tf::StampedTransform(transform, ros::Time::now(),"camera_init","camera"));;
 
 			sensor_msgs::PointCloud2 laserCloudFullRes3;
+			//pcl::transformPointCloud (*input_cloud, *input_cloud, transform_2);
 			pcl::toROSMsg(*input_cloud, laserCloudFullRes3);
 			laserCloudFullRes3.header.stamp = ros::Time().fromSec(timeLaserCloudFullRes);
 			laserCloudFullRes3.header.frame_id = "/camera_init";
 			pubLaserCloudFullRes.publish(laserCloudFullRes3);
+
+			pubLaserOdometry.publish(laserOdometry);
+
 		}
 	}
 	return 0;
