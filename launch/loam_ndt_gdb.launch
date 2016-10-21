@@ -9,7 +9,7 @@
 		<param name="maxIntU" type="double" value="2.01"/>
 	</node>
 
-	<node pkg="multimap_NDT" type="NDTL_ORU" name="multimap_NDT" output="screen" respawn="false" launch-prefix="urxvt -e gdb -ex run --args">
+	<node pkg="generalp" type="multimap_NDT" name="multimap_NDT" output="screen" respawn="false" launch-prefix="urxvt -e gdb -ex run --args">
 		<param name="voxel_size0" type="double" value="0.1"/>
 		<param name="voxel_size1" type="double" value="0.001"/>
 		<param name="resolution0" type="double" value="1.4"/>
