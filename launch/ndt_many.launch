@@ -1,0 +1,36 @@
+<launch>
+	<arg name="rviz" default="true" />
+
+
+	<node pkg="generalp" type="cornernessNClouds" name="cornernessNClouds" output="screen">
+		<param name="limLower0" type="double" value="0.00"/>
+		<param name="limUpper0" type="double" value="0.07"/>
+		<param name="limLower1" type="double" value="0.9"/>
+		<param name="limUpper1" type="double" value="100.0"/>
+		<param name="limLower2" type="double" value="0.6"/>
+		<param name="limUpper2" type="double" value="0.61"/>
+		<param name="K" type="int" value="5"/>
+	</node>
+	<node pkg="generalp" type="NDTL_ORU_MANY" name="NDTL_ORU_MANY" output="screen" respawn="false" launch-prefix="urxvt -e gdb --args">
+		<param name="voxel_size0" type="double" value="0.14"/>
+		<param name="voxel_size1" type="double" value="0.014"/>
+		<param name="voxel_size2" type="double" value="0.01"/>
+		<param name="resolution0" type="double" value="1.7"/>
+		<param name="resolution1" type="double" value="0.38"/>
+		<param name="resolution2" type="double" value="0.3"/>
+		<param name="numIter" type="double" value="50"/>
+		<param name="size_z" type="double" value="35"/>
+		<param name="size_x" type="double" value="130"/>
+		<param name="size_y" type="double" value="130"/>
+		<param name="pose_init_r" type="double" value="-1.57079"/>
+		<param name="pose_init_p" type="double" value="0"/>
+		<param name="pose_init_t" type="double" value="0"/>
+		<param name="sensor_range" type="double" value="130.3"/>
+	</node>
+
+  <group if="$(arg rviz)">
+    <node launch-prefix="nice" pkg="rviz" type="rviz" name="rviz" args="-d $(find generalp)/rviz_cfg/loam_ndt.rviz" />
+  </group>
+<param name="use_sim_time" value="false" />
+
+</launch>
