@@ -66,10 +66,19 @@ int occluded(pcl::PointXYZ a, pcl::PointXYZ b, float d)
 	return 0;
 }
 
+ros::Publisher pubLaserCloud;
 ros::Publisher pubLaserCloud0;
 ros::Publisher pubLaserCloud1;
 void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
 {
+
+	ros::NodeHandle nh("~");
+	nh.param("minIntL",minIntL,minIntL);
+	nh.param("minIntU",minIntU,minIntU);
+	nh.param("maxIntL",maxIntL,maxIntL);
+	nh.param("maxIntU",maxIntU,maxIntU);
+	nh.param("K",K,K);
+
 
 	double timeScanCur = laserCloudMsg->header.stamp.toSec();
 	pcl::PointCloud<pcl::PointXYZ>::Ptr laserCloudIn (new pcl::PointCloud<pcl::PointXYZ>);
@@ -133,6 +142,7 @@ void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
 		if(cornerness[i]!=-1)
 			laserCloud->push_back(laserCloudIn->points[i]);
 			*/
+	pcl::PointCloud<pcl::PointXYZI>::Ptr laserCloud  (new pcl::PointCloud<pcl::PointXYZI>);
 	pcl::PointCloud<pcl::PointXYZI>::Ptr laserCloud0 (new pcl::PointCloud<pcl::PointXYZI>);
 	pcl::PointCloud<pcl::PointXYZI>::Ptr laserCloud1 (new pcl::PointCloud<pcl::PointXYZI>);
 	pcl::PointXYZI point;
@@ -146,6 +156,11 @@ void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
 			point.y=laserCloudIn->points[i].y;
 			point.z=laserCloudIn->points[i].z;
 			point.intensity=cornerness[i];
+			if(point.intensity>0)
+#pragma omp critical(dataupdate)
+			{
+				laserCloud->points.push_back(point);
+			}
 			if(point.intensity<minIntU&&point.intensity>minIntL)
 #pragma omp critical(dataupdate)
 			{
@@ -167,13 +182,18 @@ void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
   printf("%c[2K\r",27);
   std::cout<< " "<<((float ) laserCloudIn->points.size()-(float )(laserCloud1->points.size()+laserCloud0->points.size()))/laserCloudIn->points.size()<<"\t\t"<<std::flush;
   printf("\r");
-
             
   sensor_msgs::PointCloud2 laserCloudOutMsg1;
   pcl::toROSMsg(*laserCloud1, laserCloudOutMsg1);
   laserCloudOutMsg1.header.stamp = laserCloudMsg->header.stamp;
   laserCloudOutMsg1.header.frame_id = "/camera";
   pubLaserCloud1.publish(laserCloudOutMsg1);
+            
+  sensor_msgs::PointCloud2 laserCloudOutMsg2;
+  pcl::toROSMsg(*laserCloud, laserCloudOutMsg2);
+  laserCloudOutMsg2.header.stamp = laserCloudMsg->header.stamp;
+  laserCloudOutMsg2.header.frame_id = "/camera";
+  pubLaserCloud.publish(laserCloudOutMsg2);
 }
 
 int main(int argc, char** argv)
@@ -188,6 +208,7 @@ int main(int argc, char** argv)
 
   ros::Subscriber subLaserCloud = nh.subscribe<sensor_msgs::PointCloud2> ("/kitti_player/hdl64e", 2, laserCloudHandler);
 
+  pubLaserCloud = nh.advertise<sensor_msgs::PointCloud2> ("/velodyne_input", 2); 
   pubLaserCloud0 = nh.advertise<sensor_msgs::PointCloud2> ("/velodyne_input0", 2); 
   pubLaserCloud1 = nh.advertise<sensor_msgs::PointCloud2> ("/velodyne_input1", 2); 
 

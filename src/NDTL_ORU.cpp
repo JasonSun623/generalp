@@ -102,8 +102,6 @@ int main(int argc, char** argv)
 	nh.param("resolution0", resolution[0],0.40f);
 	nh.param("resolution1", resolution[1],0.40f);
 	nh.param("numIter", numIter,150);
-	nh.param("doMultires", doMultires,true);
-	nh.param("do3D", do3D,true);
 	std::cout<<std::endl<<std::endl<<"Running NDT  ";
 
 	ros::Subscriber subLaserCloudFullRes0 = nh.subscribe<sensor_msgs::PointCloud2> ("/velodyne_input0", 2, laserCloudFullResHandler0);
@@ -160,6 +158,7 @@ int main(int argc, char** argv)
 	    //lslgeneric::NDTMatcherD2D_2D matcher2D;
 		Eigen::Affine3d to_cor=pose_.inverse();
 	
+		ros::Rate(2000).sleep();
 	
 		while(ros::ok())
 		{
@@ -169,7 +168,7 @@ int main(int argc, char** argv)
 				continue;
 			newLaserCloudFullRes =0;
 
-			if(do3D&&systemInited)
+			if(systemInited)
 			{
 				for(unsigned int i=0;i<map.size();i++)
 				{

@@ -73,11 +73,17 @@ target_link_libraries(NDT_ORU ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS
 add_executable(NDTL_ORU src/NDTL_ORU.cpp)
 target_link_libraries(NDTL_ORU ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS} ${Boost_LIBRARIES} -lboost_serialization)
 
+add_executable(NDTL_ORU_MANY src/NDTL_ORU_MANY.cpp)
+target_link_libraries(NDTL_ORU_MANY ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS} ${Boost_LIBRARIES} -lboost_serialization)
+
 add_executable(cornerness src/cornerness.cpp)
 target_link_libraries(cornerness ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS} ${Boost_LIBRARIES} -lboost_serialization)
 
 add_executable(cornernessTwoClouds src/cornernessTwoClouds.cpp)
 target_link_libraries(cornernessTwoClouds ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS} ${Boost_LIBRARIES} -lboost_serialization)
+
+add_executable(cornernessNClouds src/cornernessNClouds.cpp)
+target_link_libraries(cornernessNClouds ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS} ${Boost_LIBRARIES} -lboost_serialization)
 
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## Uncomment this if the package has a setup.py. This macro ensures
