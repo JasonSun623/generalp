@@ -1,35 +1,3 @@
-// Copyright 2013, Ji Zhang, Carnegie Mellon University
-// Further contributions copyright (c) 2016, Southwest Research Institute
-// All rights reserved.
-//
-// Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions are met:
-//
-// 1. Redistributions of source code must retain the above copyright notice,
-//    this list of conditions and the following disclaimer.
-// 2. Redistributions in binary form must reproduce the above copyright notice,
-//    this list of conditions and the following disclaimer in the documentation
-//    and/or other materials provided with the distribution.
-// 3. Neither the name of the copyright holder nor the names of its
-//    contributors may be used to endorse or promote products derived from this
-//    software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-// ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
-// LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-// CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-// POSSIBILITY OF SUCH DAMAGE.
-//
-// This is an implementation of the algorithm described in the following paper:
-//   J. Zhang and S. Singh. LOAM: Lidar Odometry and Mapping in Real-time.
-//     Robotics: Science and Systems Conference (RSS). Berkeley, CA, July 2014.
-
 #include <cmath>
 #include <vector>
 
@@ -45,10 +13,9 @@
 #include <tf/transform_broadcaster.h>
 #include <omp.h>
 
-float minIntL;
-float minIntU;
-float maxIntL;
-float maxIntU;
+std::vector<boost::array<float,2> > limits;
+std::vector<ros::Publisher> pubLaserCloud;
+int numRegions;
 int K;
 
 int occluded(pcl::PointXYZ a, pcl::PointXYZ b, float d)
@@ -66,19 +33,12 @@ int occluded(pcl::PointXYZ a, pcl::PointXYZ b, float d)
 	return 0;
 }
 
-ros::Publisher pubLaserCloud;
-ros::Publisher pubLaserCloud0;
-ros::Publisher pubLaserCloud1;
 void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
 {
 
 	ros::NodeHandle nh("~");
-	nh.param("minIntL",minIntL,minIntL);
-	nh.param("minIntU",minIntU,minIntU);
-	nh.param("maxIntL",maxIntL,maxIntL);
-	nh.param("maxIntU",maxIntU,maxIntU);
-	nh.param("K",K,K);
-
+	int i=0;
+	while(nh.getParam(("limLower"+boost::lexical_cast<std::string>(i)).c_str(),limits[i][0]) && nh.getParam(("limUpper"+boost::lexical_cast<std::string>(i)).c_str(),limits[i][1]) && ++i);
 
 	double timeScanCur = laserCloudMsg->header.stamp.toSec();
 	pcl::PointCloud<pcl::PointXYZ>::Ptr laserCloudIn (new pcl::PointCloud<pcl::PointXYZ>);
@@ -90,7 +50,7 @@ void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
 	pcl::KdTreeFLANN<pcl::PointXYZ> kdtree;
 	kdtree.setInputCloud (laserCloudIn);
 	std::vector<float> cornerness (cloudSize,-1);
-#define n_threads 6
+#define n_threads 8
     #pragma omp parallel num_threads(n_threads)
 	{
         #pragma omp for
@@ -142,9 +102,7 @@ void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
 		if(cornerness[i]!=-1)
 			laserCloud->push_back(laserCloudIn->points[i]);
 			*/
-	pcl::PointCloud<pcl::PointXYZI>::Ptr laserCloud  (new pcl::PointCloud<pcl::PointXYZI>);
-	pcl::PointCloud<pcl::PointXYZI>::Ptr laserCloud0 (new pcl::PointCloud<pcl::PointXYZI>);
-	pcl::PointCloud<pcl::PointXYZI>::Ptr laserCloud1 (new pcl::PointCloud<pcl::PointXYZI>);
+	std::vector<pcl::PointCloud<pcl::PointXYZI> > laserCloud  (numRegions+1);
 	pcl::PointXYZI point;
 
     #pragma omp parallel num_threads(n_threads)
@@ -159,61 +117,46 @@ void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
 			if(point.intensity>0)
 #pragma omp critical(dataupdate)
 			{
-				laserCloud->points.push_back(point);
+				laserCloud[0].points.push_back(point);
 			}
-			if(point.intensity<minIntU&&point.intensity>minIntL)
+			for(int j=0;j<numRegions;j++)
+				if(point.intensity<limits[j][1]&&point.intensity>limits[j][0])
 #pragma omp critical(dataupdate)
-			{
-				laserCloud0->points.push_back(point);
-			}
-			else if(point.intensity<maxIntU&&point.intensity>maxIntL)
-#pragma omp critical(dataupdate)
-			{
-				laserCloud1->points.push_back(point);
-			}
+				{
+					laserCloud[j+1].points.push_back(point);
+				}
 		}
 	}
- 
-  sensor_msgs::PointCloud2 laserCloudOutMsg;
-  pcl::toROSMsg(*laserCloud0, laserCloudOutMsg);
-  laserCloudOutMsg.header.stamp = laserCloudMsg->header.stamp;
-  laserCloudOutMsg.header.frame_id = "/camera";
-  pubLaserCloud0.publish(laserCloudOutMsg);
-  printf("%c[2K\r",27);
-  std::cout<< " "<<((float ) laserCloudIn->points.size()-(float )(laserCloud1->points.size()+laserCloud0->points.size()))/laserCloudIn->points.size()<<"\t\t"<<std::flush;
-  printf("\r");
-            
-  sensor_msgs::PointCloud2 laserCloudOutMsg1;
-  pcl::toROSMsg(*laserCloud1, laserCloudOutMsg1);
-  laserCloudOutMsg1.header.stamp = laserCloudMsg->header.stamp;
-  laserCloudOutMsg1.header.frame_id = "/camera";
-  pubLaserCloud1.publish(laserCloudOutMsg1);
-            
-  sensor_msgs::PointCloud2 laserCloudOutMsg2;
-  pcl::toROSMsg(*laserCloud, laserCloudOutMsg2);
-  laserCloudOutMsg2.header.stamp = laserCloudMsg->header.stamp;
-  laserCloudOutMsg2.header.frame_id = "/camera";
-  pubLaserCloud.publish(laserCloudOutMsg2);
-}
 
+	for(int i=0;i<numRegions+1;i++)
+	{
+			
+		  sensor_msgs::PointCloud2 laserCloudOutMsg;
+		  pcl::toROSMsg(laserCloud[i], laserCloudOutMsg);
+		  laserCloudOutMsg.header.stamp = laserCloudMsg->header.stamp;
+		  laserCloudOutMsg.header.frame_id = "/camera";
+		  pubLaserCloud[i].publish(laserCloudOutMsg);
+	}
+}
 int main(int argc, char** argv)
 {
-  ros::init(argc, argv, "scanRegistration");
-  ros::NodeHandle nh("~");
-	nh.param("minIntL",minIntL,0.00f);
-	nh.param("minIntU",minIntU,0.1f);
-	nh.param("maxIntL",maxIntL,0.8f);
-	nh.param("maxIntU",maxIntU,2.05f);
+
+  	ros::init(argc, argv, "cornerness");
+  	ros::NodeHandle nh("~");
 	nh.param("K",K,10);
-
-  ros::Subscriber subLaserCloud = nh.subscribe<sensor_msgs::PointCloud2> ("/kitti_player/hdl64e", 2, laserCloudHandler);
-
-  pubLaserCloud = nh.advertise<sensor_msgs::PointCloud2> ("/velodyne_input", 2); 
-  pubLaserCloud0 = nh.advertise<sensor_msgs::PointCloud2> ("/velodyne_input0", 2); 
-  pubLaserCloud1 = nh.advertise<sensor_msgs::PointCloud2> ("/velodyne_input1", 2); 
-
-  ros::spin();
-
-  return 0;
+    pubLaserCloud.push_back(nh.advertise<sensor_msgs::PointCloud2> ("/velodyne_input", 2)); 
+	int i=0;
+limits.push_back({0.0,0.0} ); 
+	while(nh.getParam(("limLower"+boost::lexical_cast<std::string>(i)).c_str(),limits[i][0]) && nh.getParam(("limUpper"+boost::lexical_cast<std::string>(i)).c_str(),limits[i][1]))
+	{
+		limits.push_back({0.0,0.0} );
+		pubLaserCloud.push_back(nh.advertise<sensor_msgs::PointCloud2> (("/velodyne_input"+boost::lexical_cast<std::string>(i)).c_str(), 2)); 
+		i++;
+	}
+	limits.pop_back();
+	numRegions=limits.size();
+	ros::Subscriber subLaserCloud = nh.subscribe<sensor_msgs::PointCloud2> ("/kitti_player/hdl64e", 2, laserCloudHandler);
+	ros::spin();
+	return 0;
 }
 
