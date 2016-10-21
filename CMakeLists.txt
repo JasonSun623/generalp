@@ -70,7 +70,7 @@ target_link_libraries(NDT_OM_ORU ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_L
 add_executable(NDT_ORU src/NDT_ORU.cpp)
 target_link_libraries(NDT_ORU ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS} ${Boost_LIBRARIES} -lboost_serialization)
 
-add_executable(multimap_NDT.cpp  src/multimap_NDT.cpp)
+add_executable(multimap_NDT  src/multimap_NDT.cpp)
 target_link_libraries(multimap_NDT ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS} ${Boost_LIBRARIES} -lboost_serialization)
 
 add_executable(cornerness src/cornerness.cpp)
