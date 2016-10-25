@@ -145,8 +145,6 @@ int main(int argc, char** argv)
 	nh.param("size_z",size_z,15.05f);
 	nh.param("sensor_range",sensor_range,100.3f);
 	nh.param("numIter", numIter,150);
-//	boost::mutex mutex;
-//	mutex.lock();
 
 	cloud_handlers input_clouds (NumInputs,voxel_size);
 	ros::Subscriber *subscribers = new ros::Subscriber[NumInputs];
@@ -182,18 +180,25 @@ int main(int argc, char** argv)
 	ROS_INFO("Init pose is (%lf,%lf,%lf)", pose_.translation()(0), pose_.translation()(1), pose_.rotation().eulerAngles(0,1,2)(0));
 
 	lslgeneric::NDTMatcherD2DL matcher;
+	matcher.NumInputs=3;
 	matcher.ITR_MAX =numIter;
 	matcher.step_control=true;
 
-	allMaps maps;
+	lslgeneric::NDTMap *mapG[100];
+	lslgeneric::NDTMap *mapL[100];
 
 	for(unsigned int i=0;i< NumInputs;i++)
 	{
-		maps.add_map(resolution[i]);
-		maps.mapG[i].guessSize(0,0,0,size_x,size_y,size_z);
-		maps.mapL[i].guessSize(0,0,0,size_x,size_y,size_z);
-		maps.mapG[i].computeNDTCells(CELL_UPDATE_MODE_SAMPLE_VARIANCE);
-		maps.mapL[i].computeNDTCells(CELL_UPDATE_MODE_SAMPLE_VARIANCE);
+		lslgeneric::LazyGrid *grid0 = new lslgeneric::LazyGrid(resolution[i]);
+		lslgeneric::NDTMap *map0 = new lslgeneric::NDTMap(grid0);
+		lslgeneric::LazyGrid *grid1 = new lslgeneric::LazyGrid(resolution[i]);
+		lslgeneric::NDTMap *map1 = new lslgeneric::NDTMap(grid1);
+		mapG[i]=map0;
+		mapL[i]=map1;
+		mapG[i]->guessSize(0,0,0,size_x,size_y,size_z);
+		mapL[i]->guessSize(0,0,0,size_x,size_y,size_z);
+		mapG[i]->computeNDTCells(CELL_UPDATE_MODE_SAMPLE_VARIANCE);
+		mapL[i]->computeNDTCells(CELL_UPDATE_MODE_SAMPLE_VARIANCE);
 	}	
 	Eigen::Affine3d to_cor=pose_.inverse();
 
@@ -211,10 +216,10 @@ int main(int argc, char** argv)
 		{
 			for(unsigned int i=0;i<NumInputs;i++)
 			{
-				maps.mapL[i].loadPointCloud(*input_clouds[i],sensor_range);
-				maps.mapL[i].computeNDTCells(CELL_UPDATE_MODE_SAMPLE_VARIANCE);
+				mapL[i]->loadPointCloud(*input_clouds[i],sensor_range);
+				mapL[i]->computeNDTCells(CELL_UPDATE_MODE_SAMPLE_VARIANCE);
 			}
-			matcher.match( maps.mapG, maps.mapL,Tinit,true) ;
+			matcher.match(mapG,mapL,Tinit,true) ;
 		}
 		systemInited=true;
 		pose_=pose_*Tinit;
@@ -228,8 +233,8 @@ int main(int argc, char** argv)
 
 		for(unsigned int i=0;i<NumInputs;i++)
 		{
-			maps.mapG[i].loadPointCloud(*input_clouds[i],sensor_range);
-			maps.mapG[i].computeNDTCells(CELL_UPDATE_MODE_SAMPLE_VARIANCE);
+			mapG[i]->loadPointCloud(*input_clouds[i],sensor_range);
+			mapG[i]->computeNDTCells(CELL_UPDATE_MODE_SAMPLE_VARIANCE);
 		}
 		pubLaserOdometry.publish(laserOdometry);
 
