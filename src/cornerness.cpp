@@ -198,7 +198,7 @@ void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
 
 int main(int argc, char** argv)
 {
-  ros::init(argc, argv, "scanRegistration");
+  ros::init(argc, argv, "cornerness");
   ros::NodeHandle nh("~");
 	nh.param("minIntL",minIntL,0.00f);
 	nh.param("minIntU",minIntU,0.1f);
