@@ -180,7 +180,7 @@ int main(int argc, char** argv)
 	ROS_INFO("Init pose is (%lf,%lf,%lf)", pose_.translation()(0), pose_.translation()(1), pose_.rotation().eulerAngles(0,1,2)(0));
 
 	lslgeneric::NDTMatcherD2DL matcher;
-	matcher.NumInputs=3;
+	matcher.NumInputs=NumInputs;
 	matcher.ITR_MAX =numIter;
 	matcher.step_control=true;
 

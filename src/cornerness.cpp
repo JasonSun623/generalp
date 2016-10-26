@@ -13,6 +13,7 @@
 #include <tf/transform_broadcaster.h>
 #include <omp.h>
 
+using namespace std;
 std::vector<boost::array<float,2> > limits;
 std::vector<ros::Publisher> pubLaserCloud;
 int numRegions;
@@ -39,6 +40,9 @@ void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
 	ros::NodeHandle nh("~");
 	int i=0;
 	while(nh.getParam(("limLower"+boost::lexical_cast<std::string>(i)).c_str(),limits[i][0]) && nh.getParam(("limUpper"+boost::lexical_cast<std::string>(i)).c_str(),limits[i][1]) && ++i);
+//	for(int i=0;i<numRegions;i++)
+//		cout<<limits[i][0]<<'\t'<<limits[i][1]<<endl;
+//	cout<<"************"<<endl;
 
 	double timeScanCur = laserCloudMsg->header.stamp.toSec();
 	pcl::PointCloud<pcl::PointXYZ>::Ptr laserCloudIn (new pcl::PointCloud<pcl::PointXYZ>);
@@ -130,7 +134,7 @@ void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
 
 	for(int i=0;i<numRegions+1;i++)
 	{
-			
+//		cout<<i<<'\t'<<laserCloud[i]<<endl;
 		  sensor_msgs::PointCloud2 laserCloudOutMsg;
 		  pcl::toROSMsg(laserCloud[i], laserCloudOutMsg);
 		  laserCloudOutMsg.header.stamp = laserCloudMsg->header.stamp;
