@@ -87,8 +87,8 @@ void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
 						maxCornIndex = j;
 					else cornerness[j]=-1;
 				}
-				float distanceOfPoint = pow(laserCloudIn->points[i].x,2)+pow(laserCloudIn->points[i].y,2)+pow(laserCloudIn->points[i].z,2);
-				if(cf)cornerness[i]=sqrt(pow(diffXYZ[0],2)+pow(diffXYZ[1],2)+pow(diffXYZ[2],2));
+				float distanceOfPoint =sqrt( pow(laserCloudIn->points[i].x,2)+pow(laserCloudIn->points[i].y,2)+pow(laserCloudIn->points[i].z,2));
+				if(cf)cornerness[i]=numKNN>0?sqrt(pow(diffXYZ[0],2)+pow(diffXYZ[1],2)+pow(diffXYZ[2],2))/distanceOfPoint/numKNN:-1;
 				if(cornerness[i]!=-1)
 				{
 					if(cornerness[i]<cornerness[minCornIndex]&&minCornIndex!=i)

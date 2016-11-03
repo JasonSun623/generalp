@@ -15,22 +15,22 @@
 		<param name="K" type="int" value="4"/>
 	</node>
 	<node pkg="generalp" type="multimap_NDT" name="multimap_NDT" output="screen" respawn="false" >
-		<param name="resolution0" type="double" value="3.04"/>
-		<param name="voxel_size0" type="double" value="0.014"/>
-		<param name="resolution1" type="double" value="0.38"/>
-		<param name="voxel_size1" type="double" value="0.014"/>
-		<param name="resolution2" type="double" value="0.38"/>
-		<param name="voxel_size2" type="double" value="0.014"/>
-		<param name="resolution3" type="double" value="3.00"/>
-		<param name="voxel_size3" type="double" value="0.014"/>
-		<param name="numIter" type="double" value="50"/>
+		<param name="resolution0" type="double" value="5.00"/>
+		<param name="voxel_size0" type="double" value="0.0"/>
+		<param name="resolution1" type="double" value="2.50"/>
+		<param name="voxel_size1" type="double" value="0.000"/>
+		<param name="resolution2" type="double" value="1.25"/>
+		<param name="voxel_size2" type="double" value="0.00"/>
+		<param name="resolution3" type="double" value="0.62"/>
+		<param name="voxel_size3" type="double" value="0.0"/>
+		<param name="numIter" type="double" value="100"/>
 		<param name="size_z" type="double" value="35"/>
 		<param name="size_x" type="double" value="130"/>
 		<param name="size_y" type="double" value="130"/>
 		<param name="pose_init_r" type="double" value="-1.57079"/>
 		<param name="pose_init_p" type="double" value="0"/>
 		<param name="pose_init_t" type="double" value="0"/>
-		<param name="sensor_range" type="double" value="130.3"/>
+		<param name="sensor_range" type="double" value="100.3"/>
 	</node>
 
   <group if="$(arg rviz)">
