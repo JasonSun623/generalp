@@ -22,17 +22,13 @@
 #include "std_msgs/Float32MultiArray.h"
 #include "std_msgs/Int16.h"
 #include <pcl/filters/approximate_voxel_grid.h>
-#include <ndt_registration/ndt_matcher_p2d.h>
 #include <ndt_map/ndt_map.h>
 #include <ndt_map/lazy_grid.h>
 #include <ndt_map/ndt_cell.h>
-#include <ndt_registration/ndt_matcher_d2dl.h>
+#include <ndt_registration/ndt_matcher_p2dl.h>
 #include <tf_conversions/tf_eigen.h>
 #include <csignal>
-#include <ndt_map/NDTMapMsg.h>
 #include <ndt_map/ndt_conversions.h>
-#include <nav_msgs/OccupancyGrid.h>
-#include <ndt_registration/ndt_matcher_d2d_2d.h>
 using namespace std;
 void run();
 Eigen::Transform<double,3,Eigen::Affine,Eigen::ColMajor> T;
@@ -42,13 +38,13 @@ char rotatingFun[4]={'|','/','-','\\'};
 int rotateCount=0;
 
 class input_cloud_handler{
-	pcl::PointCloud<pcl::PointXYZ>::Ptr input_cloud ;
+	pcl::PointCloud<pcl::PointXYZ> *input_cloud ;
 	public:
 	int num;
 	float voxel_size;
 	unsigned int *newCloud;
 	input_cloud_handler(unsigned int *newCloudt){voxel_size=0;num=0;newCloud=newCloudt;};
-	input_cloud_handler(unsigned int *newCloudt,float voxel_size1,int num1,pcl::PointCloud<pcl::PointXYZ>::Ptr tmpC)
+	input_cloud_handler(unsigned int *newCloudt,float voxel_size1,int num1,pcl::PointCloud<pcl::PointXYZ> *tmpC)
 	{
 		voxel_size=voxel_size1;
 		num=num1;
@@ -82,37 +78,28 @@ class input_cloud_handler{
 class allMaps{
 	public:
 	std::vector<lslgeneric::NDTMap > mapG ;
-	std::vector<lslgeneric::NDTMap > mapL;
 	void add_map(float resolution)
 	{
 		lslgeneric::LazyGrid *tmp1 = (lslgeneric::LazyGrid*) malloc(2*sizeof(lslgeneric::LazyGrid));
 		new(tmp1) lslgeneric::LazyGrid(resolution);
-		lslgeneric::LazyGrid *tmp2 = (lslgeneric::LazyGrid*) malloc(2*sizeof(lslgeneric::LazyGrid));
-		new(tmp2) lslgeneric::LazyGrid(resolution);
 		lslgeneric::NDTMap *tmp_map1 = (lslgeneric::NDTMap*) malloc(2*sizeof(lslgeneric::NDTMap));
 		new(tmp_map1) lslgeneric::NDTMap(tmp1);
-		lslgeneric::NDTMap *tmp_map2 = (lslgeneric::NDTMap*) malloc(2*sizeof(lslgeneric::NDTMap));
-		new(tmp_map2) lslgeneric::NDTMap(tmp2);
 		mapG.push_back(*tmp_map1);
-		mapL.push_back(*tmp_map2);
 	}
 };
 class cloud_handlers{
 	unsigned int N;
 	unsigned int newCloud;
-	std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr > input_cloud;
 	public:
+	pcl::PointCloud<pcl::PointXYZ> *input_cloud;
 		std::vector<input_cloud_handler> handler;
 		cloud_handlers(int Nt,float *voxel_size)
 		{
 			newCloud=0;
 			N=Nt;
+			input_cloud=new pcl::PointCloud<pcl::PointXYZ>[N];
 			for(int i=0;i<N;i++)
-			{
-				pcl::PointCloud<pcl::PointXYZ>::Ptr tmp (new pcl::PointCloud<pcl::PointXYZ>) ;
-				input_cloud.push_back(tmp);
-				handler.push_back(input_cloud_handler(&newCloud,voxel_size[i],i,tmp));
-			}
+				handler.push_back(input_cloud_handler(&newCloud,voxel_size[i],i,&input_cloud[i]));
 		}
 		bool check_new(){
 			if(__builtin_popcount(newCloud)==N)
@@ -121,7 +108,6 @@ class cloud_handlers{
 				return true;
 			}else return false;
 		}
-		pcl::PointCloud<pcl::PointXYZ>::Ptr operator[](std::size_t idx) {return input_cloud[idx];};
 };
 
 int main(int argc, char** argv)
@@ -179,26 +165,19 @@ int main(int argc, char** argv)
 	Tinit.setIdentity();
 	ROS_INFO("Init pose is (%lf,%lf,%lf)", pose_.translation()(0), pose_.translation()(1), pose_.rotation().eulerAngles(0,1,2)(0));
 
-	lslgeneric::NDTMatcherD2DL matcher;
+	lslgeneric::NDTMatcherP2DL matcher;
 	matcher.NumInputs=NumInputs;
 	matcher.ITR_MAX =numIter;
-	matcher.step_control=true;
 
 	lslgeneric::NDTMap *mapG[100];
-	lslgeneric::NDTMap *mapL[100];
 
 	for(unsigned int i=0;i< NumInputs;i++)
 	{
 		lslgeneric::LazyGrid *grid0 = new lslgeneric::LazyGrid(resolution[i]);
 		lslgeneric::NDTMap *map0 = new lslgeneric::NDTMap(grid0);
-		lslgeneric::LazyGrid *grid1 = new lslgeneric::LazyGrid(resolution[i]);
-		lslgeneric::NDTMap *map1 = new lslgeneric::NDTMap(grid1);
 		mapG[i]=map0;
-		mapL[i]=map1;
 		mapG[i]->guessSize(0,0,0,size_x,size_y,size_z);
-		mapL[i]->guessSize(0,0,0,size_x,size_y,size_z);
 		mapG[i]->computeNDTCells(CELL_UPDATE_MODE_SAMPLE_VARIANCE);
-		mapL[i]->computeNDTCells(CELL_UPDATE_MODE_SAMPLE_VARIANCE);
 	}	
 	Eigen::Affine3d to_cor=pose_.inverse();
 
@@ -213,14 +192,7 @@ int main(int argc, char** argv)
 			continue;
 
 		if(systemInited)
-		{
-			for(unsigned int i=0;i<NumInputs;i++)
-			{
-				mapL[i]->loadPointCloud(*input_clouds[i],sensor_range);
-				mapL[i]->computeNDTCells(CELL_UPDATE_MODE_SAMPLE_VARIANCE);
-			}
-			matcher.match(mapG,mapL,Tinit,true) ;
-		}
+			matcher.match(mapG,input_clouds.input_cloud,Tinit) ;
 		systemInited=true;
 		pose_=pose_*Tinit;
 		tf::Transform transform;
@@ -233,7 +205,7 @@ int main(int argc, char** argv)
 
 		for(unsigned int i=0;i<NumInputs;i++)
 		{
-			mapG[i]->loadPointCloud(*input_clouds[i],sensor_range);
+			mapG[i]->loadPointCloud(input_clouds.input_cloud[i],sensor_range);
 			mapG[i]->computeNDTCells(CELL_UPDATE_MODE_SAMPLE_VARIANCE);
 		}
 		pubLaserOdometry.publish(laserOdometry);
