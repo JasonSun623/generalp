@@ -14,12 +14,11 @@
 #include <omp.h>
 
 using namespace std;
-std::vector<boost::array<float,2> > limits;
 std::vector<ros::Publisher> pubLaserCloud;
-int numRegions;
 int K;
+double rejectPerc;
 
-int occluded(pcl::PointXYZ a, pcl::PointXYZ b, float d)
+int occluded(pcl::PointXYZI a, pcl::PointXYZI b, float d)
 {
 	float d1 = sqrt(a.x*a.x+a.y*a.y+a.z*a.z);
 	float d2 = sqrt(b.x*b.x+b.y*b.y+b.z*b.z);
@@ -34,26 +33,45 @@ int occluded(pcl::PointXYZ a, pcl::PointXYZ b, float d)
 	return 0;
 }
 
+vector<size_t> sort_pointcloud(vector<float> &in)
+{
+	vector<size_t> idx(in.size());
+	vector<size_t> idx2(in.size());
+	iota(idx.begin(),idx.end(),0);
+	sort(idx.begin(), idx.end(),[&in](size_t i1,size_t i2){return in[i1]<in[i2];});
+	size_t j=0;
+	for(auto i : idx)
+	{
+		idx2[i]=j;
+		j++;
+	}
+	return idx2;
+}
+size_t index_selector(size_t I[],size_t number_inputs,size_t number_points)
+{
+	size_t minI=0,minA=I[0];
+	size_t maxI=0,maxA=I[0];
+	for(auto i=0;i<number_inputs;i++)
+	{
+		if(I[i]<=minA) { minA=I[i];minI=i; }
+		if(I[i]>=maxA) { maxA=I[i];maxI=i; }
+	}
+	return number_points-maxA<minA?maxI+number_inputs:minI;
+}
 void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
 {
 
-	ros::NodeHandle nh("~");
-	int i=0;
-	while(nh.getParam(("limLower"+boost::lexical_cast<std::string>(i)).c_str(),limits[i][0]) && nh.getParam(("limUpper"+boost::lexical_cast<std::string>(i)).c_str(),limits[i][1]) && ++i);
-//	for(int i=0;i<numRegions;i++)
-//		cout<<limits[i][0]<<'\t'<<limits[i][1]<<endl;
-//	cout<<"************"<<endl;
-
 	double timeScanCur = laserCloudMsg->header.stamp.toSec();
-	pcl::PointCloud<pcl::PointXYZ>::Ptr laserCloudIn (new pcl::PointCloud<pcl::PointXYZ>);
+	pcl::PointCloud<pcl::PointXYZI>::Ptr laserCloudIn (new pcl::PointCloud<pcl::PointXYZI>);
 	pcl::fromROSMsg(*laserCloudMsg, *laserCloudIn);
     std::vector<int> indices;
     pcl::removeNaNFromPointCloud(*laserCloudIn, *laserCloudIn, indices);
 	int cloudSize = laserCloudIn->points.size();
 
-	pcl::KdTreeFLANN<pcl::PointXYZ> kdtree;
+	pcl::KdTreeFLANN<pcl::PointXYZI> kdtree;
 	kdtree.setInputCloud (laserCloudIn);
 	std::vector<float> cornerness (cloudSize,-1);
+	std::vector<float> intensity (cloudSize);
 #define n_threads 8
     #pragma omp parallel num_threads(n_threads)
 	{
@@ -63,6 +81,7 @@ void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
 			std::vector<int> pointIdxKNNSearch(K);
 			std::vector<float> pointDistance(K);
 			std::vector<float> diffXYZ (3,0);
+			intensity[i]=laserCloudIn->points[i].intensity;
 			if(kdtree.nearestKSearch(laserCloudIn->points[i],K,pointIdxKNNSearch,pointDistance)>0)
 			{
 				int minCornIndex=i;
@@ -100,41 +119,31 @@ void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
 			}
 		}
 	}
-	/*
-	pcl::PointCloud<pcl::PointXYZ>::Ptr laserCloud (new pcl::PointCloud<pcl::PointXYZ>);
+	std::vector<pcl::PointCloud<pcl::PointXYZI> > laserCloud  (4);
+	auto Icor=sort_pointcloud(cornerness);
+	auto Iint=sort_pointcloud(intensity);
+	int cut_off_l=(1-rejectPerc)/2*cloudSize;
+	int cut_off_u=(1+rejectPerc)/2*cloudSize;
 	for(int i=0;i<cloudSize;i++)
-		if(cornerness[i]!=-1)
-			laserCloud->push_back(laserCloudIn->points[i]);
-			*/
-	std::vector<pcl::PointCloud<pcl::PointXYZI> > laserCloud  (numRegions+1);
-	pcl::PointXYZI point;
-
-    #pragma omp parallel num_threads(n_threads)
 	{
-        #pragma omp for private(point)
-		for(int i=0;i<cloudSize;i++)
-		{
-			point.x=laserCloudIn->points[i].x;
-			point.y=laserCloudIn->points[i].y;
-			point.z=laserCloudIn->points[i].z;
-			point.intensity=cornerness[i];
-			if(point.intensity>0)
-#pragma omp critical(dataupdate)
-			{
-				laserCloud[0].points.push_back(point);
-			}
-			for(int j=0;j<numRegions;j++)
-				if(point.intensity<limits[j][1]&&point.intensity>limits[j][0])
-#pragma omp critical(dataupdate)
-				{
-					laserCloud[j+1].points.push_back(point);
-				}
-		}
+		if(Icor[i]<cut_off_u&&Icor[i]>cut_off_l&&cornerness[i]==-1)
+			continue;
+		if(Iint[i]<cut_off_u&&Iint[i]>cut_off_l&&Icor[i]<cut_off_u&&Icor[i]>cut_off_l)
+			continue;
+		pcl::PointXYZI point;
+		point.x=laserCloudIn->points[i].x;
+		point.y=laserCloudIn->points[i].y;
+		point.z=laserCloudIn->points[i].z;
+		point.intensity=laserCloudIn->points[i].intensity;
+		size_t k[]={Icor[i],Iint[i]};
+		int index=0;
+		if(cornerness[i]==-1)
+			k[0]=cloudSize/2;
+		laserCloud[index_selector(k,2,cloudSize)].points.push_back(point);
 	}
-
-	for(int i=0;i<numRegions+1;i++)
+	cout<<(float (laserCloud[0].points.size()+laserCloud[1].points.size()+laserCloud[2].points.size()+laserCloud[3].points.size()))/cloudSize*100<<endl;
+	for(int i=0;i<4;i++)
 	{
-//		cout<<i<<'\t'<<laserCloud[i]<<endl;
 		  sensor_msgs::PointCloud2 laserCloudOutMsg;
 		  pcl::toROSMsg(laserCloud[i], laserCloudOutMsg);
 		  laserCloudOutMsg.header.stamp = laserCloudMsg->header.stamp;
@@ -148,17 +157,11 @@ int main(int argc, char** argv)
   	ros::init(argc, argv, "cornerness");
   	ros::NodeHandle nh("~");
 	nh.param("K",K,10);
-    pubLaserCloud.push_back(nh.advertise<sensor_msgs::PointCloud2> ("/velodyne_input", 2)); 
-	int i=0;
-limits.push_back({0.0,0.0} ); 
-	while(nh.getParam(("limLower"+boost::lexical_cast<std::string>(i)).c_str(),limits[i][0]) && nh.getParam(("limUpper"+boost::lexical_cast<std::string>(i)).c_str(),limits[i][1]))
-	{
-		limits.push_back({0.0,0.0} );
-		pubLaserCloud.push_back(nh.advertise<sensor_msgs::PointCloud2> (("/velodyne_input"+boost::lexical_cast<std::string>(i)).c_str(), 2)); 
-		i++;
-	}
-	limits.pop_back();
-	numRegions=limits.size();
+	nh.param("reject", rejectPerc,0.5);
+	pubLaserCloud.push_back(nh.advertise<sensor_msgs::PointCloud2> ("/velodyne_input0", 2)); 
+	pubLaserCloud.push_back(nh.advertise<sensor_msgs::PointCloud2> ("/velodyne_input1", 2)); 
+	pubLaserCloud.push_back(nh.advertise<sensor_msgs::PointCloud2> ("/velodyne_input2", 2)); 
+	pubLaserCloud.push_back(nh.advertise<sensor_msgs::PointCloud2> ("/velodyne_input3", 2)); 
 	ros::Subscriber subLaserCloud = nh.subscribe<sensor_msgs::PointCloud2> ("/kitti_player/hdl64e", 2, laserCloudHandler);
 	ros::spin();
 	return 0;

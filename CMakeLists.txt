@@ -3,7 +3,7 @@ project(generalp)
 set(SURE_INCLUDE_DIRS "~/workspace/rgbdpro/sure3d/include")
 set(SURE_LIBRARY_DIRS "~/workspace/rgbdpro/sure3d/lib")
 set(SURE_LIBRARIES "~/workspace/rgbdpro/sure3d/lib/libsure3d.so")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS} -g -O0")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS} -g -O0 -std=c++11")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS} -g O0")
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
@@ -58,8 +58,8 @@ target_link_libraries(genetic ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS
 add_executable(recordT src/recordT.cpp)
 target_link_libraries(recordT ${catkin_LIBRARIES} ${PCL_LIBRARIES}  -lboost_serialization)
 
-add_executable(findInterestSure src/findInterestSure.cpp)
-target_link_libraries(findInterestSure ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS} ${Boost_LIBRARIES} ${SURE_LIBRARIES} -lboost_serialization)
+#add_executable(findInterestSure src/findInterestSure.cpp)
+#target_link_libraries(findInterestSure ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS} ${Boost_LIBRARIES} ${SURE_LIBRARIES} -lboost_serialization)
 
 add_executable(NDTmatchingPCL src/NDTmatchingPCL.cpp)
 target_link_libraries(NDTmatchingPCL  ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS} ${Boost_LIBRARIES} -lboost_serialization)
