@@ -38,17 +38,42 @@ void run();
 Eigen::Transform<double,3,Eigen::Affine,Eigen::ColMajor> T;
 double timeLaserCloudFullRes = 0;
 
+double startOri;
+double endOri;
+	int NumInputs=0;
 char rotatingFun[4]={'|','/','-','\\'};
 int rotateCount=0;
-
+void transformPointCloudInPlaceRectified(Eigen::Transform<double,3,Eigen::Affine,Eigen::ColMajor> Tr, pcl::PointCloud<pcl::PointXYZ> *pc)
+{
+	double angle2;
+	angle2=startOri-endOri;
+	angle2+=angle2<2.0944?6.2832:0;
+			//cout<<"Translation: "<<Tr.translation()<<endl;
+			//cout<<"Rotation: " <<Tr.rotation()<<endl;
+	for(unsigned int jit=0;jit<NumInputs;jit++)
+	{
+		for(unsigned int pit=0; pit<pc[jit].points.size(); ++pit)
+		{
+			Eigen::Map<Eigen::Vector3f> pt((float*)&pc[jit].points[pit],3);
+			double angle;
+			angle =startOri -atan2(pt[1],pt[0]);
+			if(angle<0)angle=3.1416-angle;
+			Eigen::Transform<float,3,Eigen::Affine,Eigen::ColMajor> T = Tr.cast<float>();
+			for(int i=0;i<3;i++)
+				for(int j=0;j<2;j++)
+					T(i,j)=T(i,j)*angle/angle2;
+			pt = T *pt;
+		}
+	}
+}
 class input_cloud_handler{
-	pcl::PointCloud<pcl::PointXYZ>::Ptr input_cloud ;
+	pcl::PointCloud<pcl::PointXYZ> *input_cloud ;
 	public:
 	int num;
 	float voxel_size;
 	unsigned int *newCloud;
 	input_cloud_handler(unsigned int *newCloudt){voxel_size=0;num=0;newCloud=newCloudt;};
-	input_cloud_handler(unsigned int *newCloudt,float voxel_size1,int num1,pcl::PointCloud<pcl::PointXYZ>::Ptr tmpC)
+	input_cloud_handler(unsigned int *newCloudt,float voxel_size1,int num1,pcl::PointCloud<pcl::PointXYZ> *tmpC)
 	{
 		voxel_size=voxel_size1;
 		num=num1;
@@ -78,7 +103,11 @@ class input_cloud_handler{
 		*newCloud|=1<<num;
 	}
 };
-
+void angleCallback(const std_msgs::Float32MultiArray::ConstPtr& floats)
+{
+	startOri=floats->data[0];
+	endOri=floats->data[1];
+}
 class allMaps{
 	public:
 	std::vector<lslgeneric::NDTMap > mapG ;
@@ -100,19 +129,16 @@ class allMaps{
 class cloud_handlers{
 	unsigned int N;
 	unsigned int newCloud;
-	std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr > input_cloud;
 	public:
+	pcl::PointCloud<pcl::PointXYZ> *input_cloud;
 		std::vector<input_cloud_handler> handler;
 		cloud_handlers(int Nt,float *voxel_size)
 		{
 			newCloud=0;
 			N=Nt;
+			input_cloud=new pcl::PointCloud<pcl::PointXYZ>[N];
 			for(int i=0;i<N;i++)
-			{
-				pcl::PointCloud<pcl::PointXYZ>::Ptr tmp (new pcl::PointCloud<pcl::PointXYZ>) ;
-				input_cloud.push_back(tmp);
-				handler.push_back(input_cloud_handler(&newCloud,voxel_size[i],i,tmp));
-			}
+				handler.push_back(input_cloud_handler(&newCloud,voxel_size[i],i,&input_cloud[i]));
 		}
 		bool check_new(){
 			if(__builtin_popcount(newCloud)==N)
@@ -121,7 +147,6 @@ class cloud_handlers{
 				return true;
 			}else return false;
 		}
-		pcl::PointCloud<pcl::PointXYZ>::Ptr operator[](std::size_t idx) {return input_cloud[idx];};
 };
 
 int main(int argc, char** argv)
@@ -133,7 +158,6 @@ int main(int argc, char** argv)
 	int numIter;
 
 	int maxInputs=20;
-	int NumInputs=0;
 
 	float *resolution = new float[maxInputs];
 	float *voxel_size = new float[maxInputs];
@@ -163,6 +187,7 @@ int main(int argc, char** argv)
 	tf::TransformBroadcaster tfBroadcaster;
 	tf::TransformBroadcaster tfBroadcaster2;
 
+	ros::Subscriber angleSubscribe = nh.subscribe<std_msgs::Float32MultiArray>("/start_end_angles",1,angleCallback);
 
 	ros::Rate rate(10);
 	bool systemInited = false;
@@ -216,10 +241,11 @@ int main(int argc, char** argv)
 		{
 			for(unsigned int i=0;i<NumInputs;i++)
 			{
-				mapL[i]->loadPointCloud(*input_clouds[i],sensor_range);
+				mapL[i]->loadPointCloud(input_clouds.input_cloud[i],sensor_range);
 				mapL[i]->computeNDTCells(CELL_UPDATE_MODE_SAMPLE_VARIANCE);
 			}
 			matcher.match(mapG,mapL,Tinit,true) ;
+			//transformPointCloudInPlaceRectified(Tinit.inverse(), input_clouds.input_cloud);
 		}
 		systemInited=true;
 		pose_=pose_*Tinit;
@@ -233,7 +259,7 @@ int main(int argc, char** argv)
 
 		for(unsigned int i=0;i<NumInputs;i++)
 		{
-			mapG[i]->loadPointCloud(*input_clouds[i],sensor_range);
+			mapG[i]->loadPointCloud(input_clouds.input_cloud[i],sensor_range);
 			mapG[i]->computeNDTCells(CELL_UPDATE_MODE_SAMPLE_VARIANCE);
 		}
 		pubLaserOdometry.publish(laserOdometry);

@@ -1,17 +1,17 @@
 <launch>
 	<arg name="rviz" default="true" />
 	<node pkg="generalp" type="cornerness" name="cornerness" output="screen">
-		<param name="K" type="int" value="4"/>
-		<param name="reject" type="double" value="0.75"/>
+		<param name="K" type="int" value="5"/>
+		<param name="reject" type="double" value="0.95"/>
 	</node>
 	<node pkg="generalp" type="multimap_NDT" name="multimap_NDT" output="screen" respawn="false" >
-		<param name="resolution0" type="double" value="0.70"/>
+		<param name="resolution0" type="double" value="2.50"/>
 		<param name="voxel_size0" type="double" value="0.0"/>
-		<param name="resolution1" type="double" value="0.70"/>
+		<param name="resolution1" type="double" value="2.50"/>
 		<param name="voxel_size1" type="double" value="0.000"/>
-		<param name="resolution2" type="double" value="0.70"/>
+		<param name="resolution2" type="double" value="2.50"/>
 		<param name="voxel_size2" type="double" value="0.00"/>
-		<param name="resolution3" type="double" value="0.70"/>
+		<param name="resolution3" type="double" value="2.50"/>
 		<param name="voxel_size3" type="double" value="0.0"/>
 		<param name="numIter" type="double" value="100"/>
 		<param name="size_z" type="double" value="35"/>

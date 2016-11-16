@@ -2,6 +2,7 @@
 #include <vector>
 
 #include <opencv/cv.h>
+#include "std_msgs/Float32MultiArray.h"
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
@@ -15,6 +16,7 @@
 
 using namespace std;
 std::vector<ros::Publisher> pubLaserCloud;
+ros::Publisher p1;
 int K;
 double rejectPerc;
 
@@ -72,6 +74,11 @@ void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
 	kdtree.setInputCloud (laserCloudIn);
 	std::vector<float> cornerness (cloudSize,-1);
 	std::vector<float> intensity (cloudSize);
+	std_msgs::Float32MultiArray ar;
+	ar.data.clear();
+	ar.data.push_back(-atan2(laserCloudIn->points[0].y,laserCloudIn->points[0].x));
+	ar.data.push_back(-atan2(laserCloudIn->points[cloudSize-1].y,laserCloudIn->points[cloudSize-1].x));
+	p1.publish(ar);
 #define n_threads 8
     #pragma omp parallel num_threads(n_threads)
 	{
@@ -158,20 +165,7 @@ int main(int argc, char** argv)
   	ros::NodeHandle nh("~");
 	nh.param("K",K,10);
 	nh.param("reject", rejectPerc,0.5);
-	pubLaserCloud.push_back(nh.advertise<sensor_msgs::PointCloud2> ("/velodyne_input0", 2)); 
-	pubLaserCloud.push_back(nh.advertise<sensor_msgs::PointCloud2> ("/velodyne_input1", 2)); 
-	pubLaserCloud.push_back(nh.advertise<sensor_msgs::PointCloud2> ("/velodyne_input2", 2)); 
-	pubLaserCloud.push_back(nh.advertise<sensor_msgs::PointCloud2> ("/velodyne_input3", 2)); 
-	ros::Subscriber subLaserCloud = nh.subscribe<sensor_msgs::PointCloud2> ("/kitti_player/hdl64e", 2, laserCloudHandler);
-	ros::spin();
-	return 0;
-}
-
-
-  	ros::init(argc, argv, "cornerness");
-  	ros::NodeHandle nh("~");
-	nh.param("K",K,10);
-	nh.param("reject", rejectPerc,0.5);
+	p1 = nh.advertise<std_msgs::Float32MultiArray> ("/start_end_angles",1);
 	pubLaserCloud.push_back(nh.advertise<sensor_msgs::PointCloud2> ("/velodyne_input0", 2)); 
 	pubLaserCloud.push_back(nh.advertise<sensor_msgs::PointCloud2> ("/velodyne_input1", 2)); 
 	pubLaserCloud.push_back(nh.advertise<sensor_msgs::PointCloud2> ("/velodyne_input2", 2)); 
