@@ -73,6 +73,9 @@ target_link_libraries(NDT_ORU ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS
 add_executable(multimap_NDT  src/multimap_NDT.cpp)
 target_link_libraries(multimap_NDT ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS} ${Boost_LIBRARIES} -lboost_serialization)
 
+add_executable(multimap_NDT_fuser  src/multimap_NDT_fuser.cpp)
+target_link_libraries(multimap_NDT_fuser ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS} ${Boost_LIBRARIES} -lboost_serialization)
+
 add_executable(multimap_NDT_P2D  src/multimap_NDT_P2D.cpp)
 target_link_libraries(multimap_NDT_P2D ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS} ${Boost_LIBRARIES} -lboost_serialization)
 
