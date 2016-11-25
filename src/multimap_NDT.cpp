@@ -108,24 +108,6 @@ void angleCallback(const std_msgs::Float32MultiArray::ConstPtr& floats)
 	startOri=floats->data[0];
 	endOri=floats->data[1];
 }
-class allMaps{
-	public:
-	std::vector<lslgeneric::NDTMap > mapG ;
-	std::vector<lslgeneric::NDTMap > mapL;
-	void add_map(float resolution)
-	{
-		lslgeneric::LazyGrid *tmp1 = (lslgeneric::LazyGrid*) malloc(2*sizeof(lslgeneric::LazyGrid));
-		new(tmp1) lslgeneric::LazyGrid(resolution);
-		lslgeneric::LazyGrid *tmp2 = (lslgeneric::LazyGrid*) malloc(2*sizeof(lslgeneric::LazyGrid));
-		new(tmp2) lslgeneric::LazyGrid(resolution);
-		lslgeneric::NDTMap *tmp_map1 = (lslgeneric::NDTMap*) malloc(2*sizeof(lslgeneric::NDTMap));
-		new(tmp_map1) lslgeneric::NDTMap(tmp1);
-		lslgeneric::NDTMap *tmp_map2 = (lslgeneric::NDTMap*) malloc(2*sizeof(lslgeneric::NDTMap));
-		new(tmp_map2) lslgeneric::NDTMap(tmp2);
-		mapG.push_back(*tmp_map1);
-		mapL.push_back(*tmp_map2);
-	}
-};
 class cloud_handlers{
 	unsigned int N;
 	unsigned int newCloud;
@@ -156,6 +138,7 @@ int main(int argc, char** argv)
 	ros::NodeHandle nh("~");
 	float sensor_range;
 	int numIter;
+	bool with_odom=false;
 
 	int maxInputs=20;
 
@@ -169,6 +152,7 @@ int main(int argc, char** argv)
 	nh.param("size_z",size_z,15.05f);
 	nh.param("sensor_range",sensor_range,100.3f);
 	nh.param("numIter", numIter,150);
+	nh.param("with_odometry",with_odom,false);
 
 	cloud_handlers input_clouds (NumInputs,voxel_size);
 	ros::Subscriber *subscribers = new ros::Subscriber[NumInputs];
@@ -227,9 +211,11 @@ int main(int argc, char** argv)
 	}	
 	Eigen::Affine3d to_cor=pose_.inverse();
 
+	tf::StampedTransform tf_c;
+	Eigen::Affine3d tf_now,tf_before;
+	tf::TransformListener tf_listener;
+
 	std::cout<<std::endl<<std::endl<<"Running NDT  "<<std::endl;
-//	return 0;
-//	mutex.unlock();
 	while(ros::ok())
 	{
 		rate.sleep();
@@ -237,8 +223,24 @@ int main(int argc, char** argv)
 		if (!input_clouds.check_new()) 
 			continue;
 
+		if(with_odom)
+		{
+			tf_before=tf_now;
+			tf_listener.lookupTransform("odom","base_link",ros::Time(0),tf_c);
+			tf::poseTFToEigen(tf_c,tf_now);
+		}
 		if(systemInited)
 		{
+			if(with_odom)
+			{
+				Eigen::Transform<double,3,Eigen::Affine> odom_trans;
+				odom_trans.setIdentity();
+				odom_trans*=(tf_now.rotation() -tf_before.rotation());
+				odom_trans.translate(tf_now.translation() -tf_before.translation());
+				Tinit.setIdentity();
+				Tinit.rotate(odom_trans.rotation());
+				Tinit.translate(odom_trans.translation());
+			}	
 			for(unsigned int i=0;i<NumInputs;i++)
 			{
 				mapL[i]->loadPointCloud(input_clouds.input_cloud[i],sensor_range);

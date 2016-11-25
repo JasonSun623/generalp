@@ -42,10 +42,18 @@ vector<size_t> sort_pointcloud(vector<float> &in)
 	iota(idx.begin(),idx.end(),0);
 	sort(idx.begin(), idx.end(),[&in](size_t i1,size_t i2){return in[i1]<in[i2];});
 	size_t j=0;
+	size_t t=0;
+	size_t num=in.size()/2;
 	for(auto i : idx)
 	{
-		idx2[i]=j;
-		j++;
+		if(in[i]!=-1)
+		{
+			if(t<num) idx2[i]=j;
+			else idx2[i]=t;
+			j++;
+		}
+		else idx2[i]=num; 
+		t++;
 	}
 	return idx2;
 }
@@ -133,9 +141,7 @@ void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
 	int cut_off_u=(1+rejectPerc)/2*cloudSize;
 	for(int i=0;i<cloudSize;i++)
 	{
-		if(Icor[i]<cut_off_u&&Icor[i]>cut_off_l&&cornerness[i]==-1)
-			continue;
-		if(Iint[i]<cut_off_u&&Iint[i]>cut_off_l&&Icor[i]<cut_off_u&&Icor[i]>cut_off_l)
+		if(!(Iint[i]>cut_off_u||Iint[i]<cut_off_l||Icor[i]>cut_off_u||Icor[i]<cut_off_l))
 			continue;
 		pcl::PointXYZI point;
 		point.x=laserCloudIn->points[i].x;
@@ -144,8 +150,6 @@ void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
 		point.intensity=laserCloudIn->points[i].intensity;
 		size_t k[]={Icor[i],Iint[i]};
 		int index=0;
-		if(cornerness[i]==-1)
-			k[0]=cloudSize/2;
 		laserCloud[index_selector(k,2,cloudSize)].points.push_back(point);
 	}
 	cout<<(float (laserCloud[0].points.size()+laserCloud[1].points.size()+laserCloud[2].points.size()+laserCloud[3].points.size()))/cloudSize*100<<endl;

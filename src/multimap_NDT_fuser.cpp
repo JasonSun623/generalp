@@ -1,4 +1,6 @@
 #include <cmath>
+#include <unistd.h>
+#include <cstdio>
 
 #include <generalp/common.h>
 #include <nav_msgs/Odometry.h>
@@ -122,10 +124,15 @@ class cloud_handlers{
 			}else return false;
 		}
 };
-
+bool term=false;
+void int_handler(int x)
+{
+	term=true;
+}
 int main(int argc, char** argv)
 {
 	float skipB,size_x,size_y,size_z;
+	//signal(SIGINT,int_handler);
 	ros::init(argc, argv, "ndt_registration");
 	ros::NodeHandle nh("~");
 	float sensor_range;
@@ -136,6 +143,10 @@ int main(int argc, char** argv)
 
 	float *resolution = new float[maxInputs];
 	float *voxel_size = new float[maxInputs];
+	char * input_pipe = "/tmp/multimap_fifo";
+	mkfifo(input_pipe,0666);
+	std::ifstream fifo;
+	fifo.open(input_pipe,ifstream::in);
 
 	while(nh.getParam(("voxel_size"+boost::lexical_cast<std::string>(NumInputs)).c_str(),voxel_size[NumInputs]) && nh.getParam(("resolution"+boost::lexical_cast<std::string>(NumInputs)).c_str(),resolution[NumInputs])&& ++NumInputs);
 
@@ -189,10 +200,16 @@ int main(int argc, char** argv)
 	tf::TransformListener tf_listener;
 
 	std::cout<<std::endl<<std::endl<<"Running NDT  "<<std::endl;
-	while(ros::ok())
+	int numB;
+	while(!term&&ros::ok())
 	{
 		rate.sleep();
 		ros::spinOnce();
+		std::string word;
+		if(fifo>>word)
+			map_fuser.saveMap();
+		if(fifo.eof())
+			fifo.clear();
 		if (!input_clouds.check_new()) 
 			continue;
 		if(!systemInited)
@@ -227,5 +244,7 @@ int main(int argc, char** argv)
 		pubLaserOdometry.publish(laserOdometry);
 
 	}
+	map_fuser.saveMap();
+	return 0;
 }
 
