@@ -42,6 +42,7 @@
 
 #include <cmath>
 #include <vector>
+#include <iterator>
 
 #include <opencv/cv.h>
 #include <nav_msgs/Odometry.h>
@@ -61,8 +62,9 @@ using std::sin;
 using std::cos;
 using std::atan2;
 
-const double scanPeriod = 0.1;
 
+double timeScanPrev;
+double scanPeriod;
 const int systemDelay = 20;
 int systemInitCount = 0;
 bool systemInited = false;
@@ -245,7 +247,15 @@ void AccumulateIMUShift()
     imuVeloZ[imuPointerLast] = imuVeloZ[imuPointerBack] + accZ * timeDiff;
   }
 }
-
+float getAngleZ(const pcl::PointXYZI& a)
+{
+	return round(atan(a.z / sqrt(a.x * a.x + a.y * a.y))*100)/100;
+//	return atan(a.z / sqrt(a.x * a.x + a.y * a.y));
+}
+float getAngleXY(const pcl::PointXYZI& a)
+{
+	return round(atan2(a.y, a.x)*1000)/1000;
+}
 void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
 {
     if (!systemInited) 
@@ -260,56 +270,63 @@ void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
     std::vector<int> scanEndInd(N_SCANS, 0);
 
     double timeScanCur = laserCloudMsg->header.stamp.toSec();
-    pcl::PointCloud<pcl::PointXYZ> laserCloudIn;
+	timeScanPrev=timeScanCur;
+    pcl::PointCloud<pcl::PointXYZI> laserCloudIn;
     pcl::fromROSMsg(*laserCloudMsg, laserCloudIn);
     std::vector<int> indices;
     pcl::removeNaNFromPointCloud(laserCloudIn, laserCloudIn, indices);
     int cloudSize = laserCloudIn.points.size();
 	if(cloudSize<1)return;
-    float startOri = -atan2(laserCloudIn.points[0].y, laserCloudIn.points[0].x);
-    float endOri = -atan2(laserCloudIn.points[cloudSize - 1].y, laserCloudIn.points[cloudSize - 1].x) + 2 * M_PI;
+	
+	auto min_max = std::minmax_element(laserCloudIn.points.begin(),laserCloudIn.points.end(), [](const pcl::PointXYZI& a, const pcl::PointXYZI& b){return getAngleZ(a)<getAngleZ(b);});
+	std::vector<pcl::PointCloud< pcl::PointXYZI >::iterator> k;
+	k.push_back(laserCloudIn.points.begin());
+	float difAngle=(-getAngleZ(*min_max.first)+getAngleZ(*min_max.second))/16;
+	for(int i=0;i<16;i++)
+	{
+		float angleSet=getAngleZ(*min_max.first)+i*difAngle;
+		k.push_back(std::partition( k.back(), laserCloudIn.points.end(), [&angleSet](const pcl::PointXYZI& a){return getAngleZ(a)==angleSet;}));
+	}
+	std::sort(k.at(0),k.at(1),[](const pcl::PointXYZI& a,const pcl::PointXYZI& b){return getAngleXY(a)<getAngleXY(b);}) ;
+	int nbrLowerScn=std::distance(k.at(0),k.at(1));
+	std::vector<float> angles;
+	angles.reserve(nbrLowerScn);
+	angles.resize(nbrLowerScn);
+	std::transform(k.at(0),k.at(1),angles.begin(),[](const pcl::PointXYZI& a){return getAngleXY(a);});
+	std::adjacent_difference(angles.begin(),angles.end(),angles.begin());
+	float meanAngles=std::accumulate(std::begin(angles),std::end(angles),0.0)/nbrLowerScn;
+	angles[0]=angles[1];
+	auto firstOver = std::find_if(std::begin(angles),std::end(angles),[&meanAngles](float a){return a<meanAngles;});
+	int indexFirst=0;
+	if(std::distance(std::begin(angles),firstOver)<nbrLowerScn)
+		indexFirst=std::distance(std::begin(angles),firstOver);
+	scanPeriod = timeScanCur- timeScanPrev;
+	std::cout<<scanPeriod<<std::endl;
 
-    if (endOri - startOri > 3 * M_PI) {
-        endOri -= 2 * M_PI;
-    } else if (endOri - startOri < M_PI) {
-        endOri += 2 * M_PI;
-    }
-    bool halfPassed = false;
+
+
+    float startOri =getAngleXY(laserCloudIn.points[indexFirst]);
+	if(startOri<0)startOri+=2*M_PI;
+
+
     int count = cloudSize;
-    pcl::PointXYZRGB point;
-    std::vector<pcl::PointCloud<pcl::PointXYZRGB> > laserCloudScans(N_SCANS);
+    pcl::PointXYZI point;
+    std::vector<pcl::PointCloud<pcl::PointXYZI> > laserCloudScans(N_SCANS);
     for (int i = 0; i < cloudSize; i++) {
         point.x = laserCloudIn.points[i].x;
-        point.y = laserCloudIn.points[i].z;
-        point.z = laserCloudIn.points[i].y;
+        point.y = laserCloudIn.points[i].y;
+        point.z = laserCloudIn.points[i].z;
+        point.intensity = laserCloudIn.points[i].intensity;
 
-        float angle = atan(point.y / sqrt(point.x * point.x + point.z * point.z)) * 180 / M_PI;
-        int scanID;
-        int roundedAngle = int(angle + (angle<0.0?-0.5:+0.5)); 
-        if (roundedAngle > 0) scanID = roundedAngle;
-        else scanID = roundedAngle + (N_SCANS - 1);
-        if (scanID > (N_SCANS - 1) || scanID < 0 ){
-            count--;
-            continue;
-        }
+        float ori = getAngleXY(point);
+		if(ori<0)ori+=2*M_PI;
+        float relTime;
+		float angleDif=startOri-ori;
+		if(angleDif>0)
+			relTime=angleDif/(2*M_PI);
+		else
+			relTime=(2*M_PI-angleDif)/(2*M_PI);
 
-        float ori = -atan2(point.x, point.z);
-        if (!halfPassed) {
-          if (ori < startOri - M_PI / 2) ori += 2 * M_PI;
-          else if (ori > startOri + M_PI * 3 / 2) ori -= 2 * M_PI; 
-          if (ori - startOri > M_PI) halfPassed = true;
-        } 
-        else 
-        {
-          ori += 2 * M_PI;
-          if (ori < endOri - M_PI * 3 / 2) 
-            ori += 2 * M_PI;
-          else if (ori > endOri + M_PI / 2)
-            ori -= 2 * M_PI;
-        }
-
-        float relTime = (ori - startOri) / (endOri - startOri);
-        point.rgb = scanID + scanPeriod * relTime;
         if (imuPointerLast >= 0) {
           float pointTime = relTime * scanPeriod;
           while (imuPointerFront != imuPointerLast) {
@@ -377,22 +394,17 @@ void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
             TransformToStartIMU(&point);
           }
         }
-        laserCloudScans[scanID].push_back(point);
+		laserCloudIn.points[i].x = point.x;
+		laserCloudIn.points[i].y = point.y;
+		laserCloudIn.points[i].z = point.z;
     }
-
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr laserCloud(new pcl::PointCloud<pcl::PointXYZRGB>());
-    for (int i = 0; i < N_SCANS; i++) {
-        *laserCloud += laserCloudScans[i];
-    }
-    int scanCount = -1;
-
 
 ////std::cout<<"&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&"<<std::endl;
     sensor_msgs::PointCloud2 laserCloudOutMsg;
-    pcl::toROSMsg(*laserCloud, laserCloudOutMsg);
+    pcl::toROSMsg(laserCloudIn, laserCloudOutMsg);
     laserCloudOutMsg.header.stamp = laserCloudMsg->header.stamp;
-    laserCloudOutMsg.header.frame_id = "/camera";
-    laserCloudOutMsg.fields[3].name="intensity";
+    //laserCloudOutMsg.header.frame_id = "/camera";
+    //laserCloudOutMsg.fields[3].name="intensity";
     pubLaserCloud.publish(laserCloudOutMsg);
 
 /////std::cout<<"++++++++++++++++++++++++++++++"<<std::endl;
@@ -457,17 +469,17 @@ void odometryHandler(const nav_msgs::Odometry::ConstPtr& odometryIn)
     imuRoll[imuPointerLast] = roll;
     imuPitch[imuPointerLast] = pitch;
     imuYaw[imuPointerLast] = yaw;
-    imuVeloX[imuPointerLast] = odometryIn->twist.twist.linear.y ;
-    imuVeloY[imuPointerLast] = odometryIn->twist.twist.linear.z ;
-    imuVeloZ[imuPointerLast] = odometryIn->twist.twist.linear.x ;
+    imuVeloX[imuPointerLast] = odometryIn->twist.twist.linear.x ;
+    imuVeloY[imuPointerLast] = odometryIn->twist.twist.linear.y ;
+    imuVeloZ[imuPointerLast] = odometryIn->twist.twist.linear.z ;
 
     float velX=imuVeloX[imuPointerLast];
     float velY=imuVeloY[imuPointerLast];
     float velZ=imuVeloZ[imuPointerLast];
     
-    imuShiftX[imuPointerLast] = odometryIn->pose.pose.position.y;
-    imuShiftY[imuPointerLast] = odometryIn->pose.pose.position.z;
-    imuShiftZ[imuPointerLast] = odometryIn->pose.pose.position.x;
+    imuShiftX[imuPointerLast] = odometryIn->pose.pose.position.x;
+    imuShiftY[imuPointerLast] = odometryIn->pose.pose.position.y;
+    imuShiftZ[imuPointerLast] = odometryIn->pose.pose.position.z;
   
       float x1 = cos(roll) * velX - sin(roll) * velY;
       float y1 = sin(roll) * velX + cos(roll) * velY;
@@ -501,8 +513,8 @@ int main(int argc, char** argv)
   ros::NodeHandle nh;
 
   ros::Subscriber subLaserCloud = nh.subscribe<sensor_msgs::PointCloud2> ("/velodyne_points", 2, laserCloudHandler);
-  ros::Subscriber subOdometry = nh.subscribe<nav_msgs::Odometry> ("/pose", 50, odometryHandler);
-  pubLaserCloud = nh.advertise<sensor_msgs::PointCloud2> ("/velodyne_cloud_2", 2);
+  ros::Subscriber subOdometry = nh.subscribe<nav_msgs::Odometry> ("/husky_velocity_controller/odom", 50, odometryHandler);
+  pubLaserCloud = nh.advertise<sensor_msgs::PointCloud2> ("/kitti_player/hdl64e", 2);
   ros::Subscriber subImu = nh.subscribe<sensor_msgs::Imu> ("/imu/data", 50, imuHandler);
 
 
