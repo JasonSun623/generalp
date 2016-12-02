@@ -1,6 +1,11 @@
 #include <cmath>
 #include <unistd.h>
 #include <cstdio>
+#include <csignal>
+#include <boost/iostreams/device/file_descriptor.hpp>
+#include <boost/iostreams/stream.hpp>
+#include <fcntl.h>
+#include <iostream>
 
 #include <generalp/common.h>
 #include <nav_msgs/Odometry.h>
@@ -24,7 +29,6 @@
 #include "std_msgs/Int16.h"
 #include <pcl/filters/approximate_voxel_grid.h>
 #include <tf_conversions/tf_eigen.h>
-#include <csignal>
 #include <ndt_map/ndt_conversions.h>
 #include <ndt_fuser/ndt_fuser_hmt_l.h>
 using namespace std;
@@ -143,10 +147,35 @@ int main(int argc, char** argv)
 
 	float *resolution = new float[maxInputs];
 	float *voxel_size = new float[maxInputs];
-	char * input_pipe = "/tmp/multimap_fifo";
-	mkfifo(input_pipe,0666);
+	/////////////////////////////////////////////////////
+	namespace io=boost::iostreams;
+	using src = io::file_descriptor_source;
+	using sink = io::file_descriptor_sink;
+
+	////////////////////////////////////////////////////
+	
+	std::string input_pipe = "/tmp/multimap_fifo/write_maps";
+	mkfifo(input_pipe.c_str(),0666);
+	io::stream<src> fifo(src(open(input_pipe.c_str(), O_RDONLY|O_NONBLOCK), io::file_descriptor_flags::close_handle));
+	
+	/////////////////////////////////////////////////////
+	
+	////////////////////////////////////////////////////
+	
+	std::string output_pipe = "/tmp/multimap_fifo/Tinit";
+	mkfifo(output_pipe.c_str(),0666);
+	io::stream<sink> fifo_Tinit(sink(open(output_pipe.c_str(), O_RDWR|O_NONBLOCK), io::file_descriptor_flags::close_handle));
+	
+	/////////////////////////////////////////////////////
+	//
+	/////////////////////////////////////////////////////
+	/*
+	std::string input_pipe = "/tmp/multimap_fifo";
+	mkfifo(input_pipe.c_str(),0666);
 	std::ifstream fifo;
 	fifo.open(input_pipe,ifstream::in);
+	*/
+	////////////////////////////////////////////////////
 
 	while(nh.getParam(("voxel_size"+boost::lexical_cast<std::string>(NumInputs)).c_str(),voxel_size[NumInputs]) && nh.getParam(("resolution"+boost::lexical_cast<std::string>(NumInputs)).c_str(),resolution[NumInputs])&& ++NumInputs);
 
@@ -195,8 +224,7 @@ int main(int argc, char** argv)
 
 	Eigen::Affine3d to_cor=pose_.inverse();
 
-	tf::StampedTransform tf_c;
-	Eigen::Affine3d tf_now,tf_before;
+	tf::StampedTransform tf_now,tf_before;
 	tf::TransformListener tf_listener;
 
 	std::cout<<std::endl<<std::endl<<"Running NDT  "<<std::endl;
@@ -214,24 +242,25 @@ int main(int argc, char** argv)
 			continue;
 		if(!systemInited)
 		{
+			tf_listener.lookupTransform("odom","base_link",ros::Time(0),tf_now);
+			tf::poseTFToEigen(tf_now,pose_);
 			map_fuser.initialize(pose_,input_clouds.input_cloud,false);
 			systemInited=true;
 			continue;
 		}
 		Tinit.setIdentity();
+	
 		if(with_odom)
 		{
 			tf_before=tf_now;
-			tf_listener.lookupTransform("odom","base_link",ros::Time(0),tf_c);
-			tf::poseTFToEigen(tf_c,tf_now);
-			Eigen::Transform<double,3,Eigen::Affine> odom_trans;
-			odom_trans.setIdentity();
-			odom_trans*=(tf_now.rotation() -tf_before.rotation());
-			odom_trans.translate(tf_now.translation() -tf_before.translation());
-			Tinit.rotate(odom_trans.rotation());
-			Tinit.translate(odom_trans.translation());
+			tf_listener.lookupTransform("odom","base_link",ros::Time(0),tf_now);
+			tf::poseTFToEigen(tf_before.inverseTimes(tf_now),Tinit);
+			//fifo_Tinit<<"\nTinit\n"<<Tinit.matrix();
 		}
 		pose_=map_fuser.update(Tinit,input_clouds.input_cloud);
+
+		if(fifo_Tinit.eof())fifo_Tinit.clear();
+		fifo_Tinit<<"\nPose\n"<<pose_.matrix()<<endl;
 
 		tf::Transform transform;
 		tf::transformEigenToTF(to_cor*pose_, transform);
