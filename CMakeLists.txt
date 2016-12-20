@@ -17,6 +17,7 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   pcl_ros
   tf
+  geodesy
   velodyne_msgs
   rosbag
   ndt_registration
@@ -51,6 +52,9 @@ find_package(Boost REQUIRED)
 
 add_executable(scanFix src/scanFixImuOdom.cpp)
 target_link_libraries(scanFix ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS} ${Boost_LIBRARIES} -lboost_serialization)
+
+add_executable(gps src/gps.cpp)
+target_link_libraries(gps ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS} ${Boost_LIBRARIES} -lboost_serialization)
 
 add_executable(genetic src/genetic.cpp)
 target_link_libraries(genetic ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS} ${Boost_LIBRARIES} -lboost_serialization)

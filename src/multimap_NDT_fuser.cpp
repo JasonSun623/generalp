@@ -201,7 +201,6 @@ int main(int argc, char** argv)
 	laserOdometry.child_frame_id = "/camera";
 
 	tf::TransformBroadcaster tfBroadcaster;
-	tf::TransformBroadcaster tfBroadcaster2;
 
 	ros::Subscriber angleSubscribe = nh.subscribe<std_msgs::Float32MultiArray>("/start_end_angles",1,angleCallback);
 
@@ -249,6 +248,8 @@ int main(int argc, char** argv)
 			continue;
 		}
 		Tinit.setIdentity();
+		ros::Time current_time;
+		current_time=ros::Time(0);
 	
 		if(with_odom)
 		{
@@ -266,10 +267,14 @@ int main(int argc, char** argv)
 		tf::transformEigenToTF(to_cor*pose_, transform);
 		tfBroadcaster.sendTransform(tf::StampedTransform(transform, ros::Time::now(),"camera_init","camera"));;
 
-		tf::Transform transform2;
-		tf::transformEigenToTF(pose_, transform2);
-		tfBroadcaster2.sendTransform(tf::StampedTransform(transform2, ros::Time::now(),"camera_init","camera2"));;
-
+		tf::poseTFToMsg(transform,laserOdometry.pose.pose);
+		laserOdometry.header.stamp=ros::Time::now();
+		for(int i=0;i<36;i++)
+		{
+			laserOdometry.pose.covariance[i]=i%7==0?0.001:0;
+			if(i>14)laserOdometry.pose.covariance[i]=i%7==0?0.0001:0;
+			laserOdometry.twist.covariance[i]=i%7==0?999.9:0;
+		}
 		pubLaserOdometry.publish(laserOdometry);
 
 	}

@@ -509,12 +509,12 @@ void odometryHandler(const nav_msgs::Odometry::ConstPtr& odometryIn)
 
 int main(int argc, char** argv)
 {
-  ros::init(argc, argv, "scanRegistration");
+  ros::init(argc, argv, "scanFix");
   ros::NodeHandle nh;
 
-  ros::Subscriber subLaserCloud = nh.subscribe<sensor_msgs::PointCloud2> ("/velodyne_points", 2, laserCloudHandler);
+  ros::Subscriber subLaserCloud = nh.subscribe<sensor_msgs::PointCloud2> ("/velodyne_scanFixIn", 2, laserCloudHandler);
   ros::Subscriber subOdometry = nh.subscribe<nav_msgs::Odometry> ("/husky_velocity_controller/odom", 50, odometryHandler);
-  pubLaserCloud = nh.advertise<sensor_msgs::PointCloud2> ("/kitti_player/hdl64e", 2);
+  pubLaserCloud = nh.advertise<sensor_msgs::PointCloud2> ("/velodyne_scanFixOut", 2);
   ros::Subscriber subImu = nh.subscribe<sensor_msgs::Imu> ("/imu/data", 50, imuHandler);
 
 

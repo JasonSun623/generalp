@@ -1,0 +1,107 @@
+<launch>
+<arg name="gdb" default="false" />
+<arg name="fix" default="true" />
+<arg name="kitti" default="false" />
+<node pkg="tf" type="tf_remap" name="tf_remapper" output="screen">
+    <rosparam param="mappings">
+      - {old: "velodyne", new: "base_link"}
+    </rosparam>
+  </node>
+<node pkg="tf" type="static_transform_publisher" name="link1_broadcaster" args="0 0 0 0 0 0 base_link velodyne 100" />
+
+<group if="$(arg fix)">
+<remap from="/velodyne_scanFixIn" to="/velodyne_filtered"/>
+<remap from="/velodyne_scanFixOut" to="/velodyne_cornernessIn"/>
+<node pkg="generalp" type="scanFix" name="scanFix" />
+</group>
+<node pkg="generalp" type="gps" name="gps" />
+
+<node launch-prefix="nice" pkg="rviz" type="rviz" name="rviz" args="-d /home/anestis/.ros/rviz_cfg_my.rviz" />
+
+
+<param name="use_sim_time" value="true" />
+
+<group if="$(arg kitti)">
+  <remap from="/kitti_player/hdl64e" to="velodyne_points"/>
+</group>
+
+	<node pkg="generalp" type="cornerness" name="cornerness" output="screen">
+		<param name="K" type="int" value="5"/>
+		<param name="reject" type="double" value="0.80"/>
+	</node>
+
+ <group if="$(arg gdb)">
+	<node pkg="generalp" type="multimap_NDT_fuser" name="multimap_NDT_fuser" output="screen" respawn="false" launch-prefix="urxvt -e gdb -ex run --args">
+		<param name="resolution0" type="double" value="0.70"/>
+		<param name="voxel_size0" type="double" value="0.0"/>
+		<param name="resolution1" type="double" value="0.70"/>
+		<param name="voxel_size1" type="double" value="0.000"/>
+		<param name="resolution2" type="double" value="0.70"/>
+		<param name="voxel_size2" type="double" value="0.00"/>
+		<param name="resolution3" type="double" value="0.70"/>
+		<param name="voxel_size3" type="double" value="0.0"/>
+		<param name="numIter" type="double" value="100"/>
+		<param name="size_x" type="double" value="20"/>
+		<param name="size_y" type="double" value="20"/>
+		<param name="size_z" type="double" value="20"/>
+		<param name="pose_init_r" type="double" value="0"/>
+		<param name="pose_init_p" type="double" value="0"/>
+		<param name="pose_init_t" type="double" value="0"/>
+		<param name="sensor_range" type="double" value="30.0"/>
+		<param name="with_odometry" type="bool" value="true"/>
+	</node>
+ </group>
+
+
+  <group unless="$(arg gdb)">
+	<node pkg="generalp" type="multimap_NDT_fuser" name="multimap_NDT_fuser" output="screen" respawn="false">
+		<param name="resolution0" type="double" value="1.00"/>
+		<param name="voxel_size0" type="double" value="0.0"/>
+		<param name="resolution1" type="double" value="1.00"/>
+		<param name="voxel_size1" type="double" value="0.000"/>
+		<param name="resolution2" type="double" value="1.00"/>
+		<param name="voxel_size2" type="double" value="0.00"/>
+		<param name="resolution3" type="double" value="1.00"/>
+		<param name="voxel_size3" type="double" value="0.0"/>
+		<param name="numIter" type="double" value="100"/>
+		<param name="size_x" type="double" value="30"/>
+		<param name="size_y" type="double" value="30"/>
+		<param name="size_z" type="double" value="20"/>
+		<param name="pose_init_r" type="double" value="0"/>
+		<param name="pose_init_p" type="double" value="0"/>
+		<param name="pose_init_t" type="double" value="0"/>
+		<param name="sensor_range" type="double" value="100.0"/>
+		<param name="with_odometry" type="bool" value="true"/>
+	</node>
+</group>
+
+	<node pkg="object3d_detector" type="object3d_detector" name="object3d_detector" output="screen" respawn="false">
+	  <param name="model_file_name" value="/home/anestis/cwd/src/LCAS/FLOBOT/object3d_detector/libsvm/pedestrian.model"/>
+	  <param name="range_file_name" value="/home/anestis/cwd/src/LCAS/FLOBOT/object3d_detector/libsvm/pedestrian.range"/>
+	  <param name="publish_splits" value="true" />
+	</node>
+
+	  <node pkg="robot_pose_ekf" type="robot_pose_ekf" name="robot_pose_ekf" launch-prefix="urxvt -e ">
+    <param name="base_footprint_frame" value="camera2"/>
+    <param name="output_frame" value="camera_init"/>
+    <param name="freq" value="30.0"/>
+    <param name="sensor_timeout" value="20.0"/>
+    <param name="odom_used" value="true"/>
+    <param name="imu_used" value="false"/>
+    <param name="vo_used" value="true"/>
+    <param name="gps_used" value="true"/>
+    <param name="debug" value="true"/>
+    <param name="self_diagnose" value="true"/>
+		<remap from="odom" to="/husky_velocity_controller/odom"/>
+		<remap from="vo" to="/laser_odom_to_init"/>
+		<remap from="gps" to="/gps_odom"/>
+		
+
+  </node>
+
+
+
+
+
+
+</launch>

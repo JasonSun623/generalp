@@ -158,7 +158,7 @@ void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
 		  sensor_msgs::PointCloud2 laserCloudOutMsg;
 		  pcl::toROSMsg(laserCloud[i], laserCloudOutMsg);
 		  laserCloudOutMsg.header.stamp = laserCloudMsg->header.stamp;
-		  laserCloudOutMsg.header.frame_id = "/camera";
+		  laserCloudOutMsg.header.frame_id = "/camera2";
 		  pubLaserCloud[i].publish(laserCloudOutMsg);
 	}
 }
@@ -174,7 +174,7 @@ int main(int argc, char** argv)
 	pubLaserCloud.push_back(nh.advertise<sensor_msgs::PointCloud2> ("/velodyne_input1", 2)); 
 	pubLaserCloud.push_back(nh.advertise<sensor_msgs::PointCloud2> ("/velodyne_input2", 2)); 
 	pubLaserCloud.push_back(nh.advertise<sensor_msgs::PointCloud2> ("/velodyne_input3", 2)); 
-	ros::Subscriber subLaserCloud = nh.subscribe<sensor_msgs::PointCloud2> ("/kitti_player/hdl64e", 2, laserCloudHandler);
+	ros::Subscriber subLaserCloud = nh.subscribe<sensor_msgs::PointCloud2> ("/velodyne_cornernessIn", 2, laserCloudHandler);
 	ros::spin();
 	return 0;
 }
